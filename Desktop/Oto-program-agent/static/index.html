@@ -1,0 +1,1503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <title>Exercise Library</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <link rel="stylesheet" href="/static/style.css?v=3" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<!-- ── Login Overlay ────────────────────────────────────────────────────────── -->
+<div id="loginOverlay" class="login-overlay">
+  <div class="login-card">
+    <div class="login-logo">
+      <i class="fa-solid fa-dumbbell"></i>
+      <span>Exercise Library</span>
+    </div>
+
+    <!-- Sign In Panel -->
+    <div id="signInPanel">
+      <h2 class="login-title">Sign In</h2>
+      <div id="loginError" class="login-error hidden">Invalid username or password</div>
+      <!-- Google Sign-In button (shown only when server has GOOGLE_CLIENT_ID configured) -->
+      <div id="googleSignInWrapper" class="hidden">
+        <div id="googleSignInBtn"></div>
+        <div class="login-divider"><span>or</span></div>
+      </div>
+      <div class="login-field">
+        <label>Username</label>
+        <input type="text" id="loginUsername" autocomplete="username" placeholder="username" />
+      </div>
+      <div class="login-field">
+        <label>Password</label>
+        <input type="password" id="loginPassword" autocomplete="current-password" placeholder="••••••••" />
+      </div>
+      <button class="btn-primary login-btn" id="loginBtn">
+        <i class="fa-solid fa-right-to-bracket"></i> Sign In
+      </button>
+      <p class="login-switch">Don't have an account? <a href="#" id="showSignUpLink">Sign Up</a></p>
+    </div>
+
+    <!-- Sign Up Panel -->
+    <div id="signUpPanel" class="hidden">
+      <h2 class="login-title">Sign Up</h2>
+      <div id="signupError" class="login-error hidden"></div>
+      <div class="login-field">
+        <label>Username</label>
+        <input type="text" id="signupUsername" autocomplete="username" placeholder="choose a username" />
+      </div>
+      <div class="login-field">
+        <label>Password</label>
+        <input type="password" id="signupPassword" autocomplete="new-password" placeholder="••••••••" />
+      </div>
+      <div class="login-field">
+        <label>Confirm Password</label>
+        <input type="password" id="signupConfirm" autocomplete="new-password" placeholder="••••••••" />
+      </div>
+      <div class="login-field">
+        <label>Role</label>
+        <div class="chip-selector" id="signupRoleChips" style="margin-top:6px">
+          <button class="chip active" data-val="athlete">Athlete</button>
+          <button class="chip" data-val="staff">Staff</button>
+          <button class="chip" data-val="coach">Coach</button>
+        </div>
+      </div>
+      <button class="btn-primary login-btn" id="signupBtn">
+        <i class="fa-solid fa-user-plus"></i> Create Account
+      </button>
+      <p class="login-switch">Already have an account? <a href="#" id="showSignInLink">Sign In</a></p>
+    </div>
+
+  </div>
+</div>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+
+<!-- ── Sidebar Overlay (mobile) ─────────────────────────────────────────────── -->
+<div id="sidebarOverlay" class="sidebar-overlay"></div>
+
+<!-- ── Sidebar ─────────────────────────────────────────────────────────────── -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-header">
+    <div class="logo">
+      <i class="fa-solid fa-dumbbell"></i>
+      <span>Exercise Library</span>
+    </div>
+  </div>
+
+  <div class="filter-section">
+    <div class="filter-label">MOVEMENT PATTERN</div>
+    <div id="patternFilters" class="pattern-list"></div>
+    <button class="btn-ghost btn-sm add-category-btn hidden" id="addCategoryBtn">
+      <i class="fa-solid fa-plus"></i> Add category
+    </button>
+  </div>
+
+  <div class="filter-section">
+    <div class="filter-label">TRAINING QUALITY</div>
+    <div class="chip-group" id="qualityFilters">
+      <button class="chip active" data-val="">All</button>
+      <button class="chip" data-val="Strength">Strength</button>
+      <button class="chip" data-val="Power">Power</button>
+      <button class="chip" data-val="Plyometric / Reactive">Plyometric</button>
+      <button class="chip" data-val="Speed / Agility">Speed / Agility</button>
+      <button class="chip" data-val="Mobility">Mobility</button>
+    </div>
+  </div>
+
+  <div class="filter-section">
+    <div class="filter-label">DIFFICULTY</div>
+    <div class="chip-group" id="difficultyFilters">
+      <button class="chip active" data-val="">All</button>
+      <button class="chip" data-val="Beginner">Beginner</button>
+      <button class="chip" data-val="Intermediate">Intermediate</button>
+      <button class="chip" data-val="Advanced">Advanced</button>
+      <button class="chip" data-val="Elite">Elite</button>
+    </div>
+  </div>
+
+  <div class="filter-section">
+    <div class="filter-label">SPORT</div>
+    <div class="chip-group" id="sportFilters">
+      <button class="chip active" data-val="">All</button>
+      <button class="chip" data-val="gymnastics">Gymnastics</button>
+      <button class="chip" data-val="football">Football</button>
+      <button class="chip" data-val="soccer">Soccer</button>
+      <button class="chip" data-val="basketball">Basketball</button>
+      <button class="chip" data-val="volleyball">Volleyball</button>
+      <button class="chip" data-val="general">General</button>
+    </div>
+  </div>
+
+  <div class="filter-section">
+    <div class="filter-label">GENDER</div>
+    <div class="chip-group" id="genderFilters">
+      <button class="chip active" data-val="">All</button>
+      <button class="chip" data-val="male">Male</button>
+      <button class="chip" data-val="female">Female</button>
+    </div>
+  </div>
+
+  <div class="sidebar-footer">
+    <span id="exerciseCount">0 exercises</span>
+  </div>
+</aside>
+
+<!-- ── Main ────────────────────────────────────────────────────────────────── -->
+<div class="main-wrapper">
+
+  <header class="topbar">
+    <button class="sidebar-toggle" id="sidebarToggle" title="Toggle sidebar">
+      <i class="fa-solid fa-bars"></i>
+    </button>
+    <div class="view-tabs">
+      <button class="view-tab active" id="tabLibrary"><i class="fa-solid fa-dumbbell"></i> Library</button>
+      <button class="view-tab" id="tabPrograms"><i class="fa-solid fa-calendar-days"></i> Programs</button>
+      <button class="view-tab" id="tabOneRM"><i class="fa-solid fa-weight-hanging"></i> 1RM Records</button>
+      <button class="view-tab coach-only" id="tabAthletes"><i class="fa-solid fa-person-running"></i> Athletes</button>
+      <button class="view-tab coach-only" id="tabTeams"><i class="fa-solid fa-people-group"></i> Teams</button>
+      <button class="view-tab coach-only" id="tabStats"><i class="fa-solid fa-chart-bar"></i> Statistics</button>
+    </div>
+    <div class="search-box" id="librarySearchBox">
+      <i class="fa-solid fa-magnifying-glass"></i>
+      <input type="text" id="searchInput" placeholder="Search exercises, muscles… (Ctrl+K)" autocomplete="off" />
+      <button class="clear-search" id="clearSearch" title="Clear">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+    <div class="topbar-actions">
+      <button class="btn-primary" id="addExerciseBtn">
+        <i class="fa-solid fa-plus"></i><span class="btn-text"> Add Exercise</span>
+      </button>
+      <button class="btn-primary hidden" id="newProgramBtn">
+        <i class="fa-solid fa-plus"></i><span class="btn-text"> New Program</span>
+      </button>
+      <button class="btn-primary hidden" id="addOneRMBtn">
+        <i class="fa-solid fa-plus"></i><span class="btn-text"> Add Record</span>
+      </button>
+    </div>
+    <div class="topbar-user">
+      <span id="userLabel" class="user-label"></span>
+      <button class="btn-icon-topbar hidden" id="usersBtn" title="Manage Users">
+        <i class="fa-solid fa-users"></i>
+      </button>
+      <button class="btn-icon-topbar" id="logoutBtn" title="Sign Out">
+        <i class="fa-solid fa-right-from-bracket"></i>
+      </button>
+    </div>
+  </header>
+
+  <main class="content" id="libraryView">
+    <div id="activeFilters" class="active-filters"></div>
+    <div id="exerciseGrid" class="exercise-grid"></div>
+    <div id="emptyState" class="empty-state hidden">
+      <i class="fa-solid fa-magnifying-glass"></i>
+      <p>No exercises match your filters.</p>
+      <button class="btn-ghost" id="resetFiltersBtn">Reset all filters</button>
+    </div>
+  </main>
+
+  <!-- ── Programs View ──────────────────────────────────────────────────────── -->
+  <div id="programsView" class="programs-view hidden">
+    <!-- Programs list -->
+    <div id="programsList">
+      <div class="programs-list-header">
+        <h2>Training Programs</h2>
+      </div>
+      <div id="programsGrid" class="programs-grid"></div>
+      <div id="programsEmpty" class="programs-empty hidden">
+        <i class="fa-solid fa-calendar-days"></i>
+        <p>No programs yet. Create your first training program.</p>
+      </div>
+    </div>
+    <!-- Program editor -->
+    <div id="programEditor" class="program-editor hidden">
+      <div id="programEditorHeader" class="editor-header"></div>
+      <div class="week-timeline-wrap">
+        <div class="week-timeline-label">Week Timeline — click a week to view its sessions</div>
+        <div id="weekTimeline" class="week-timeline"></div>
+      </div>
+      <div class="session-grid-wrap">
+        <div class="session-grid-header">
+          <div id="sessionGridTitle" class="session-grid-title">Week 1 Sessions</div>
+        </div>
+        <div id="sessionGrid" class="session-grid"></div>
+      </div>
+    </div>
+
+    <!-- ── Athlete simplified program view ──────────────────────────────────── -->
+    <div id="athleteProgramView" class="athlete-program-view hidden">
+      <div class="apv-topbar">
+        <button class="btn-ghost apv-back-btn" id="apvBackBtn">
+          <i class="fa-solid fa-arrow-left"></i> All Programs
+        </button>
+        <div class="apv-program-title" id="apvProgramTitle"></div>
+        <div class="apv-program-meta" id="apvProgramMeta"></div>
+        <button class="btn-ghost" id="apvExportExcelBtn" title="Excel olarak indir"><i class="fa-solid fa-file-excel"></i> Excel</button>
+        <button class="btn-ghost" id="apvExportPdfBtn" title="PDF olarak indir"><i class="fa-solid fa-file-pdf"></i> PDF</button>
+      </div>
+      <div class="apv-week-nav" id="apvWeekNav">
+        <button class="apv-week-arrow" id="apvPrevWeek"><i class="fa-solid fa-chevron-left"></i></button>
+        <div class="apv-week-tabs" id="apvWeekTabs"></div>
+        <button class="apv-week-arrow" id="apvNextWeek"><i class="fa-solid fa-chevron-right"></i></button>
+      </div>
+      <div class="apv-day-tabs" id="apvDayTabs"></div>
+      <div class="apv-exercise-list" id="apvExerciseList"></div>
+    </div>
+  </div>
+
+  <!-- ── 1RM Records View ────────────────────────────────────────────────── -->
+  <div id="oneRMView" class="one-rm-view hidden">
+    <div class="one-rm-header">
+      <h2><i class="fa-solid fa-weight-hanging" style="color:#4A7CF6;margin-right:8px"></i>1RM Records</h2>
+      <div class="one-rm-header-right">
+        <div class="one-rm-search-box">
+          <i class="fa-solid fa-magnifying-glass search-icon"></i>
+          <input type="text" id="ormSearchInput" placeholder="Search exercises…" autocomplete="off" />
+        </div>
+      </div>
+    </div>
+    <div class="one-rm-table-wrap">
+      <table class="one-rm-table">
+        <thead>
+          <tr>
+            <th>Exercise</th>
+            <th>1RM (kg)</th>
+            <th>Test Date</th>
+            <th>Notes</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="ormTableBody"></tbody>
+      </table>
+      <div id="ormEmpty" class="one-rm-empty hidden">
+        <i class="fa-solid fa-weight-hanging"></i>
+        <p>No 1RM records yet. Add your first record to start tracking maximum lifts.</p>
+      </div>
+    </div>
+
+    <!-- Calculated 1RMs section -->
+    <div id="derivedRMSection" class="derived-rm-section hidden">
+      <div class="derived-rm-header">
+        <h3><i class="fa-solid fa-calculator" style="color:#6B7280;margin-right:7px"></i>Calculated 1RMs</h3>
+        <span class="derived-rm-subtitle">Estimated from your recorded 1RMs using exercise intensity relationships</span>
+      </div>
+      <div class="one-rm-table-wrap">
+        <table class="one-rm-table derived-rm-table">
+          <thead>
+            <tr>
+              <th>Exercise</th>
+              <th>Est. 1RM (kg)</th>
+              <th>Formula</th>
+            </tr>
+          </thead>
+          <tbody id="derivedRMTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Athletes View ────────────────────────────────────────────────────── -->
+  <div id="athletesView" class="athletes-view hidden">
+    <div class="athletes-list-header">
+      <h2><i class="fa-solid fa-person-running" style="color:#4A7CF6;margin-right:8px"></i>Athletes</h2>
+      <button class="btn-primary" id="newAthleteBtn">
+        <i class="fa-solid fa-plus"></i> New Athlete
+      </button>
+    </div>
+    <div id="athletesGrid" class="athletes-grid"></div>
+    <div id="athletesEmpty" class="athletes-empty hidden">
+      <i class="fa-solid fa-person-running"></i>
+      <p>No athletes yet. Create users with the "athlete" role — profiles are created automatically.</p>
+    </div>
+  </div>
+
+  <!-- ── Athlete Detail View ──────────────────────────────────────────────── -->
+  <div id="athleteDetailView" class="athlete-detail-view hidden">
+    <div class="athlete-detail-topbar">
+      <button class="btn-ghost" id="backToAthletesBtn">
+        <i class="fa-solid fa-arrow-left"></i> All Athletes
+      </button>
+      <div class="athlete-detail-identity">
+        <div class="athlete-detail-name" id="athleteDetailName"></div>
+        <div class="athlete-detail-meta" id="athleteDetailMeta"></div>
+      </div>
+      <div class="athlete-detail-actions">
+        <button class="btn-ghost" id="editAthleteBtn"><i class="fa-solid fa-pen"></i> Edit Athlete</button>
+        <button class="btn-primary" id="athleteNewProgramBtn"><i class="fa-solid fa-plus"></i> New Program</button>
+        <button class="btn-secondary" id="athleteAddORMBtn"><i class="fa-solid fa-weight-hanging"></i> Add 1RM</button>
+      </div>
+    </div>
+
+    <!-- Athlete's Programs -->
+    <div class="athlete-section">
+      <div class="athlete-section-title">
+        <i class="fa-solid fa-calendar-days"></i> Training Programs
+      </div>
+      <div id="athleteProgramsGrid" class="programs-grid"></div>
+      <div id="athleteProgramsEmpty" class="programs-empty hidden">
+        <i class="fa-solid fa-calendar-days"></i>
+        <p>No programs for this athlete yet. Click "New Program" to create one.</p>
+      </div>
+    </div>
+
+    <!-- Athlete's 1RM Records -->
+    <div class="athlete-section" style="margin-top:32px">
+      <div class="athlete-section-title">
+        <i class="fa-solid fa-weight-hanging"></i> 1RM Records
+      </div>
+      <div class="one-rm-table-wrap">
+        <table class="one-rm-table">
+          <thead>
+            <tr>
+              <th>Exercise</th>
+              <th>1RM (kg)</th>
+              <th>Test Date</th>
+              <th>Notes</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="athleteORMTableBody"></tbody>
+        </table>
+        <div id="athleteORMEmpty" class="one-rm-empty hidden">
+          <i class="fa-solid fa-weight-hanging"></i>
+          <p>No 1RM records for this athlete yet.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Teams View ─────────────────────────────────────────────────────── -->
+  <div id="teamsView" class="athletes-view hidden">
+    <div class="athletes-list-header">
+      <h2><i class="fa-solid fa-people-group" style="color:#4A7CF6;margin-right:8px"></i>Teams</h2>
+      <button class="btn-primary" id="newTeamBtn">
+        <i class="fa-solid fa-plus"></i> New Team
+      </button>
+    </div>
+    <div id="teamsGrid" class="athletes-grid"></div>
+    <div id="teamsEmpty" class="athletes-empty hidden">
+      <i class="fa-solid fa-people-group"></i>
+      <p>No teams yet. Create a team to organize athletes and assign group programs.</p>
+    </div>
+  </div>
+
+  <!-- ── Statistics View ─────────────────────────────────────────────────── -->
+  <div id="statsView" class="stats-view hidden">
+    <div class="stats-header">
+      <h2><i class="fa-solid fa-chart-bar" style="color:#4A7CF6;margin-right:8px"></i>Statistics</h2>
+    </div>
+
+    <div class="stats-sub-tabs">
+      <button class="stats-sub-tab active" id="statsTabIndividual">
+        <i class="fa-solid fa-person-running"></i> Individual Athletes
+      </button>
+      <button class="stats-sub-tab" id="statsTabTeam">
+        <i class="fa-solid fa-people-group"></i> Teams
+      </button>
+      <button class="stats-sub-tab" id="statsTabCompare">
+        <i class="fa-solid fa-scale-balanced"></i> Comparison
+      </button>
+      <button class="stats-sub-tab" id="statsTabGymnastics">
+        <i class="fa-solid fa-medal"></i> Gymnastics
+      </button>
+    </div>
+
+    <!-- ── Individual Panel ── -->
+    <div id="statsIndividualPanel" class="stats-panel">
+      <div class="stats-selector-row">
+        <label>Select Athlete</label>
+        <select id="statsAthleteSelect" class="stats-select">
+          <option value="">— Choose an athlete —</option>
+        </select>
+      </div>
+      <div id="statsIndividualContent" class="stats-content hidden">
+        <div class="stats-summary-row" id="statsIndividualSummary"></div>
+        <div class="stats-chart-card">
+          <div class="stats-chart-title">1RM Profile — Weight by Exercise</div>
+          <div class="stats-chart-wrap" id="statsIndividualChartWrap">
+            <canvas id="individualRMChart"></canvas>
+          </div>
+        </div>
+      </div>
+      <div id="statsIndividualEmpty" class="stats-empty">
+        <i class="fa-solid fa-person-running"></i>
+        <p>Select an athlete to view their 1RM statistics.</p>
+      </div>
+    </div>
+
+    <!-- ── Team Panel ── -->
+    <div id="statsTeamPanel" class="stats-panel hidden">
+      <div class="stats-selector-row">
+        <label>Select Team</label>
+        <select id="statsTeamSelect" class="stats-select">
+          <option value="">— Choose a team —</option>
+        </select>
+      </div>
+      <div id="statsTeamContent" class="stats-content hidden">
+        <div class="stats-summary-row" id="statsTeamSummary"></div>
+        <div class="stats-chart-card">
+          <div class="stats-chart-title">Team Comparison — 1RM by Exercise</div>
+          <div class="stats-chart-wrap" id="statsTeamChartWrap">
+            <canvas id="teamRMChart"></canvas>
+          </div>
+        </div>
+      </div>
+      <div id="statsTeamEmpty" class="stats-empty">
+        <i class="fa-solid fa-people-group"></i>
+        <p>Select a team to compare athlete 1RM records.</p>
+      </div>
+    </div>
+
+    <!-- ── Compare Panel ── -->
+    <div id="statsComparePanel" class="stats-panel hidden">
+
+      <!-- Athlete selection -->
+      <div class="stats-selector-row" style="flex-direction:column;align-items:flex-start;gap:10px">
+        <label>Select Athletes <span class="stats-compare-hint">(choose 2 or more)</span></label>
+        <div class="stats-compare-add-row">
+          <select id="compareAthleteSelect" class="stats-select">
+            <option value="">— Add an athlete —</option>
+          </select>
+        </div>
+        <div id="compareAthleteChips" class="stats-compare-chips"></div>
+      </div>
+
+      <!-- Exercise selection (hidden until ≥2 athletes loaded) -->
+      <div id="compareExerciseSection" class="hidden">
+        <div class="stats-selector-row" style="flex-direction:column;align-items:flex-start;gap:8px">
+          <label>Select Exercises <span class="stats-compare-hint">(choose 1 or more)</span></label>
+          <div class="stats-compare-shortcuts">
+            <button class="btn-ghost btn-sm" id="compareSelectAllEx">Select All</button>
+            <button class="btn-ghost btn-sm" id="compareDeselectAllEx">Deselect All</button>
+          </div>
+          <div id="compareExerciseChips" class="chip-selector"></div>
+        </div>
+      </div>
+
+      <!-- Chart (hidden until ≥2 athletes + ≥1 exercise) -->
+      <div id="compareChartContent" class="stats-content hidden">
+        <div class="stats-summary-row" id="compareCompareSummary"></div>
+        <div class="stats-chart-card">
+          <div class="stats-chart-title">Athlete Comparison — 1RM by Exercise</div>
+          <div class="stats-chart-wrap" id="compareChartWrap">
+            <canvas id="compareRMChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Empty / insufficient-selection state -->
+      <div id="compareEmpty" class="stats-empty">
+        <i class="fa-solid fa-scale-balanced"></i>
+        <p id="compareEmptyMsg">Select at least 2 athletes to begin comparing.</p>
+      </div>
+
+    </div>
+
+    <!-- ── Gymnastics Panel ── -->
+    <div id="statsGymPanel" class="stats-panel hidden">
+
+      <!-- Inner sub-tabs -->
+      <div class="gym-inner-tabs">
+        <button class="gym-inner-tab active" id="gymTabIndividual">
+          <i class="fa-solid fa-person-running"></i> Individual
+        </button>
+        <button class="gym-inner-tab" id="gymTabCompare">
+          <i class="fa-solid fa-scale-balanced"></i> Compare Athletes
+        </button>
+      </div>
+
+      <!-- ── Individual sub-panel ── -->
+      <div id="gymIndividualPanel">
+
+        <!-- Selector row -->
+        <div class="stats-selector-row" style="flex-wrap:wrap;gap:10px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <label style="white-space:nowrap">Athlete Type</label>
+            <select id="gymAthleteTypeSelect" class="stats-select" style="min-width:150px;max-width:180px">
+              <option value="system">System Athlete</option>
+              <option value="guest">Guest Athlete</option>
+            </select>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;flex:1">
+            <label style="white-space:nowrap">Athlete</label>
+            <select id="gymAthleteSelect" class="stats-select" style="flex:1;min-width:200px">
+              <option value="">— Choose an athlete —</option>
+            </select>
+          </div>
+          <div id="gymCoachButtons" style="display:flex;gap:8px;align-items:center">
+            <button class="btn-primary btn-sm" id="gymOpenAddResultBtn" style="display:none">
+              <i class="fa-solid fa-plus"></i> Add Result
+            </button>
+            <button class="btn-ghost btn-sm" id="gymOpenAddEventBtn">
+              <i class="fa-solid fa-calendar-plus"></i> Add Competition
+            </button>
+          </div>
+        </div>
+
+        <!-- Summary cards -->
+        <div class="stats-summary-row" id="gymSummaryRow"></div>
+
+        <!-- Charts (hidden until athlete selected) -->
+        <div id="gymChartsArea" class="hidden">
+
+          <!-- Score Progression line chart -->
+          <div class="stats-chart-card">
+            <div class="stats-chart-title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+              <span><i class="fa-solid fa-chart-line" style="margin-right:6px;color:#4A7CF6"></i>Score Progression Over Time</span>
+              <select id="gymProgressionApparatusSelect" class="stats-select" style="min-width:140px;max-width:200px;font-size:0.78rem;padding:4px 10px"></select>
+            </div>
+            <div class="stats-chart-wrap" style="min-height:280px" id="gymProgressionWrap">
+              <canvas id="gymProgressionChart"></canvas>
+            </div>
+          </div>
+
+          <!-- Apparatus Radar chart -->
+          <div class="stats-chart-card">
+            <div class="stats-chart-title">
+              <i class="fa-solid fa-chart-pie" style="margin-right:6px;color:#10B981"></i>Apparatus Score Profile (Best Scores)
+            </div>
+            <div class="stats-chart-wrap" style="min-height:360px" id="gymRadarWrap">
+              <canvas id="gymRadarChart"></canvas>
+            </div>
+          </div>
+
+          <!-- Competition Comparison bar chart -->
+          <div class="stats-chart-card">
+            <div class="stats-chart-title">
+              <i class="fa-solid fa-chart-column" style="margin-right:6px;color:#F97316"></i>Competition Comparison — Score by Apparatus
+            </div>
+            <div class="stats-chart-wrap" style="min-height:280px" id="gymComparisonWrap">
+              <canvas id="gymComparisonChart"></canvas>
+            </div>
+          </div>
+
+          <!-- Results table -->
+          <div class="stats-chart-card">
+            <div class="stats-chart-title">
+              <i class="fa-solid fa-table-list" style="margin-right:6px;color:#A855F7"></i>All Results
+            </div>
+            <div id="gymResultsTable" style="overflow-x:auto"></div>
+          </div>
+
+        </div>
+
+        <!-- Empty state -->
+        <div id="gymEmpty" class="stats-empty">
+          <i class="fa-solid fa-medal"></i>
+          <p>Select an athlete to view their gymnastics competition statistics.</p>
+        </div>
+
+        <!-- Coach-only: Add Guest Athlete form -->
+        <div id="gymCoachActions" class="hidden">
+          <div class="stats-chart-card" style="margin-top:8px">
+            <div class="stats-chart-title">
+              <i class="fa-solid fa-user-plus" style="margin-right:6px;color:#06B6D4"></i>Add Guest Athlete
+              <span class="stats-compare-hint" style="margin-left:8px">For athletes not in the system (e.g. international evaluation)</span>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:12px">
+              <div class="param-group">
+                <label>Name <span class="req">*</span></label>
+                <input type="text" id="gymGuestName" placeholder="e.g. Anna Fischer" autocomplete="off" />
+              </div>
+              <div class="param-group">
+                <label>Country</label>
+                <input type="text" id="gymGuestCountry" placeholder="e.g. Germany" autocomplete="off" />
+              </div>
+              <div class="param-group">
+                <label>Gender <span class="req">*</span></label>
+                <select id="gymGuestGender" class="stats-select" style="min-width:0;width:100%">
+                  <option value="female">Female</option>
+                  <option value="male">Male</option>
+                </select>
+              </div>
+              <div class="param-group">
+                <label>Birth Year</label>
+                <input type="number" id="gymGuestBirthYear" placeholder="e.g. 2005" min="1950" max="2020" />
+              </div>
+              <div class="param-group" style="grid-column:span 2">
+                <label>Notes</label>
+                <input type="text" id="gymGuestNotes" placeholder="Optional notes" autocomplete="off" />
+              </div>
+            </div>
+            <div style="margin-top:14px;display:flex;justify-content:flex-end">
+              <button class="btn-primary" id="gymSaveGuestBtn">
+                <i class="fa-solid fa-user-plus"></i> Save Guest Athlete
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /#gymIndividualPanel -->
+
+      <!-- ── Compare sub-panel ── -->
+      <div id="gymComparePanel" class="hidden">
+
+        <!-- Apparatus gender + athlete selectors -->
+        <div class="stats-selector-row" style="flex-wrap:wrap;gap:12px;align-items:flex-start">
+
+          <!-- Category (gender) selector -->
+          <div style="display:flex;align-items:center;gap:8px">
+            <label style="white-space:nowrap">Category</label>
+            <select id="gymCmpGender" class="stats-select" style="min-width:130px">
+              <option value="female">Women</option>
+              <option value="male">Men</option>
+            </select>
+          </div>
+
+          <!-- Add system athlete -->
+          <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:180px">
+            <label style="white-space:nowrap">System Athlete</label>
+            <select id="gymCmpSystemSelect" class="stats-select" style="flex:1">
+              <option value="">— Add —</option>
+            </select>
+          </div>
+
+          <!-- Add guest athlete -->
+          <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:180px">
+            <label style="white-space:nowrap">Guest Athlete</label>
+            <select id="gymCmpGuestSelect" class="stats-select" style="flex:1">
+              <option value="">— Add —</option>
+            </select>
+          </div>
+
+        </div>
+
+        <!-- Selected athlete chips -->
+        <div id="gymCmpChips" class="stats-compare-chips" style="margin-top:8px;min-height:32px"></div>
+
+        <!-- Compare charts (hidden until ≥2 athletes) -->
+        <div id="gymCmpChartsArea" class="hidden">
+
+          <!-- Summary cards -->
+          <div class="stats-summary-row" id="gymCmpSummaryRow"></div>
+
+          <!-- Grouped bar chart: best score per apparatus per athlete -->
+          <div class="stats-chart-card">
+            <div class="stats-chart-title">
+              <i class="fa-solid fa-chart-column" style="margin-right:6px;color:#4A7CF6"></i>
+              Athlete Comparison — Best Score by Apparatus
+            </div>
+            <div class="stats-chart-wrap" style="min-height:300px" id="gymCmpBarWrap">
+              <canvas id="gymCmpBarChart"></canvas>
+            </div>
+          </div>
+
+          <!-- Multi-athlete radar chart -->
+          <div class="stats-chart-card">
+            <div class="stats-chart-title">
+              <i class="fa-solid fa-chart-pie" style="margin-right:6px;color:#10B981"></i>
+              Apparatus Profile Overlay
+            </div>
+            <div class="stats-chart-wrap" style="min-height:400px" id="gymCmpRadarWrap">
+              <canvas id="gymCmpRadarChart"></canvas>
+            </div>
+          </div>
+
+          <!-- Comparison results table -->
+          <div class="stats-chart-card">
+            <div class="stats-chart-title">
+              <i class="fa-solid fa-table-list" style="margin-right:6px;color:#A855F7"></i>
+              Score Summary Table
+            </div>
+            <div id="gymCmpTable" style="overflow-x:auto"></div>
+          </div>
+
+        </div>
+
+        <!-- Empty / hint state -->
+        <div id="gymCmpEmpty" class="stats-empty">
+          <i class="fa-solid fa-scale-balanced"></i>
+          <p id="gymCmpEmptyMsg">Add at least 2 athletes to compare. You can mix system athletes and international guests.</p>
+        </div>
+
+      </div><!-- /#gymComparePanel -->
+
+    </div>
+  </div>
+
+  <!-- ── Team Detail View ────────────────────────────────────────────────── -->
+  <div id="teamDetailView" class="athlete-detail-view hidden">
+    <div class="athlete-detail-topbar">
+      <button class="btn-ghost" id="backToTeamsBtn">
+        <i class="fa-solid fa-arrow-left"></i> All Teams
+      </button>
+      <div class="athlete-detail-identity">
+        <div class="athlete-detail-name" id="teamDetailName"></div>
+        <div class="athlete-detail-meta" id="teamDetailMeta"></div>
+      </div>
+      <div class="athlete-detail-actions">
+        <button class="btn-ghost" id="editTeamBtn"><i class="fa-solid fa-pen"></i> Edit Team</button>
+        <button class="btn-primary" id="teamNewProgramBtn"><i class="fa-solid fa-plus"></i> New Program</button>
+      </div>
+    </div>
+
+    <!-- Roster -->
+    <div class="athlete-section">
+      <div class="athlete-section-title" style="display:flex;align-items:center;justify-content:space-between">
+        <span><i class="fa-solid fa-users"></i> Roster</span>
+        <button class="btn-ghost btn-sm" id="addMemberBtn"><i class="fa-solid fa-user-plus"></i> Add Athlete</button>
+      </div>
+      <div id="teamRosterGrid" class="athletes-grid" style="margin-top:12px"></div>
+      <div id="teamRosterEmpty" class="athletes-empty hidden" style="padding:20px 0">
+        <p>No athletes in this team yet. Click "Add Athlete" to build your roster.</p>
+      </div>
+    </div>
+
+    <!-- Team Programs -->
+    <div class="athlete-section" style="margin-top:32px">
+      <div class="athlete-section-title">
+        <i class="fa-solid fa-calendar-days"></i> Team Programs
+      </div>
+      <div id="teamProgramsGrid" class="programs-grid"></div>
+      <div id="teamProgramsEmpty" class="programs-empty hidden">
+        <i class="fa-solid fa-calendar-days"></i>
+        <p>No programs for this team yet.</p>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── Detail Modal ────────────────────────────────────────────────────────── -->
+<div class="modal-overlay hidden" id="detailModal">
+  <div class="modal modal-detail">
+    <button class="modal-close" id="detailClose"><i class="fa-solid fa-xmark"></i></button>
+    <div id="detailContent"></div>
+    <div class="modal-actions">
+      <button class="btn-ghost" id="detailEdit"><i class="fa-solid fa-pen"></i> Edit</button>
+      <button class="btn-danger" id="detailDelete"><i class="fa-solid fa-trash"></i> Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Edit / Add Modal ────────────────────────────────────────────────────── -->
+<div class="modal-overlay hidden" id="formModal">
+  <div class="modal modal-form">
+    <button class="modal-close" id="formClose"><i class="fa-solid fa-xmark"></i></button>
+    <h2 id="formTitle">Add Exercise</h2>
+    <form id="exerciseForm" autocomplete="off">
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Name (EN) <span class="req">*</span></label>
+          <input type="text" id="f-name" required />
+        </div>
+        <div class="form-group">
+          <label>Name (TR)</label>
+          <input type="text" id="f-name-tr" />
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Movement Pattern <span class="req">*</span></label>
+          <select id="f-pattern" required></select>
+        </div>
+        <div class="form-group">
+          <label>Training Quality <span class="req">*</span></label>
+          <select id="f-quality" required>
+            <option value="Strength">Strength</option>
+            <option value="Power">Power</option>
+            <option value="Plyometric / Reactive">Plyometric / Reactive</option>
+            <option value="Speed / Agility">Speed / Agility</option>
+            <option value="Mobility">Mobility</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Difficulty <span class="req">*</span></label>
+          <select id="f-difficulty" required>
+            <option value="Beginner">Beginner</option>
+            <option value="Intermediate" selected>Intermediate</option>
+            <option value="Advanced">Advanced</option>
+            <option value="Elite">Elite</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Category</label>
+          <input type="text" id="f-category" placeholder="e.g. Barbell, Gymnastics…" />
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Equipment <span class="hint">(comma-separated)</span></label>
+        <input type="text" id="f-equipment" placeholder="Barbell, Bench…" />
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Primary Muscles <span class="hint">(comma-separated)</span></label>
+          <input type="text" id="f-primary" placeholder="Glutes, Hamstrings…" />
+        </div>
+        <div class="form-group">
+          <label>Secondary Muscles <span class="hint">(comma-separated)</span></label>
+          <input type="text" id="f-secondary" placeholder="Core, Erectors…" />
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Description</label>
+        <textarea id="f-description" rows="3"></textarea>
+      </div>
+
+      <div class="form-group">
+        <label>Coaching Cues <span class="hint">(one per line)</span></label>
+        <textarea id="f-cues" rows="4" placeholder="Keep body rigid&#10;Drive through the heels&#10;…"></textarea>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Sport Tags <span class="hint">(comma-separated)</span></label>
+          <input type="text" id="f-sport" placeholder="gymnastics, football, general" />
+        </div>
+        <div class="form-group">
+          <label>Gender Tags <span class="hint">(comma-separated)</span></label>
+          <input type="text" id="f-gender" placeholder="all / male / female" value="all" />
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Video URL</label>
+        <input type="url" id="f-video" placeholder="https://…" />
+      </div>
+
+      <div class="form-group">
+        <label>Notes</label>
+        <textarea id="f-notes" rows="2"></textarea>
+      </div>
+
+      <div class="form-submit-row">
+        <button type="button" class="btn-ghost" id="formCancel">Cancel</button>
+        <button type="submit" class="btn-primary">Save Exercise</button>
+      </div>
+
+    </form>
+  </div>
+</div>
+
+<!-- ── Confirm Dialog ──────────────────────────────────────────────────────── -->
+<div class="modal-overlay hidden" id="confirmModal">
+  <div class="modal modal-confirm">
+    <p id="confirmMsg">Are you sure?</p>
+    <div class="confirm-actions">
+      <button class="btn-ghost" id="confirmNo">Cancel</button>
+      <button class="btn-danger" id="confirmYes">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── New Program Modal ─────────────────────────────────────────────────── -->
+<div class="modal-overlay hidden" id="programModal">
+  <div class="modal modal-program">
+    <button class="modal-close" id="programModalClose"><i class="fa-solid fa-xmark"></i></button>
+    <h2 id="programModalTitle">New Training Program</h2>
+
+    <div class="program-form-section">
+      <div class="program-form-section-label">Program Name</div>
+      <div class="form-group" style="margin:0">
+        <input type="text" id="pm-name" placeholder="e.g. Pre-Season Block 1" style="width:100%;box-sizing:border-box;" />
+      </div>
+    </div>
+
+    <div class="form-row" style="margin-bottom:20px">
+      <div class="program-form-section">
+        <div class="program-form-section-label">Duration (weeks)</div>
+        <div class="weeks-slider-wrap">
+          <input type="range" id="pm-weeks" min="1" max="24" value="8" />
+          <div class="weeks-value-badge"><span id="pm-weeks-val">8</span> wks</div>
+        </div>
+      </div>
+      <div class="program-form-section">
+        <div class="program-form-section-label">Start Date</div>
+        <input type="date" id="pm-start-date" style="width:100%;padding:7px 10px;border:1.5px solid #E4E7ED;border-radius:8px;font-size:0.85rem;outline:none;box-sizing:border-box;" />
+      </div>
+      <div class="program-form-section">
+        <div class="program-form-section-label">End Date</div>
+        <input type="date" id="pm-end-date" readonly style="width:100%;padding:7px 10px;border:1.5px solid #E4E7ED;border-radius:8px;font-size:0.85rem;outline:none;box-sizing:border-box;background:#F9FAFB;color:#6B7280;cursor:default;" />
+      </div>
+    </div>
+
+    <div class="program-form-section">
+      <div class="program-form-section-label">Training Days per Week</div>
+      <div class="days-selector" id="pm-days-selector">
+        <button class="day-btn" data-val="1">1</button>
+        <button class="day-btn" data-val="2">2</button>
+        <button class="day-btn active" data-val="3">3</button>
+        <button class="day-btn" data-val="4">4</button>
+        <button class="day-btn" data-val="5">5</button>
+        <button class="day-btn" data-val="6">6</button>
+        <button class="day-btn" data-val="7">7</button>
+      </div>
+    </div>
+
+    <div class="program-form-section">
+      <div class="program-form-section-label">Training Goal</div>
+      <div class="chip-selector" id="pm-goal-chips">
+        <button class="chip active" data-val="strength">Strength</button>
+        <button class="chip" data-val="hypertrophy">Hypertrophy</button>
+        <button class="chip" data-val="power">Power</button>
+        <button class="chip" data-val="endurance">Endurance</button>
+        <button class="chip" data-val="mixed">Mixed</button>
+      </div>
+    </div>
+
+    <div class="program-form-section">
+      <div class="program-form-section-label">Periodization Model</div>
+      <div class="chip-selector" id="pm-period-chips">
+        <button class="chip active" data-val="block">Block</button>
+        <button class="chip" data-val="linear">Linear</button>
+        <button class="chip" data-val="undulating">Undulating</button>
+        <button class="chip" data-val="conjugate">Conjugate</button>
+      </div>
+    </div>
+
+    <div class="form-row" style="margin-bottom:20px">
+      <div class="program-form-section">
+        <div class="program-form-section-label">Athlete Level</div>
+        <div class="chip-selector" id="pm-level-chips">
+          <button class="chip active" data-val="intermediate">Intermediate</button>
+          <button class="chip" data-val="beginner">Beginner</button>
+          <button class="chip" data-val="advanced">Advanced</button>
+          <button class="chip" data-val="elite">Elite</button>
+        </div>
+      </div>
+      <div class="program-form-section">
+        <div class="program-form-section-label">Sport</div>
+        <div class="chip-selector" id="pm-sport-chips">
+          <button class="chip active" data-val="general">General</button>
+          <button class="chip" data-val="gymnastics">Gymnastics</button>
+          <button class="chip" data-val="football">Football</button>
+          <button class="chip" data-val="soccer">Soccer</button>
+          <button class="chip" data-val="basketball">Basketball</button>
+          <button class="chip" data-val="volleyball">Volleyball</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="program-form-section">
+      <div class="program-form-section-label">Notes</div>
+      <textarea id="pm-notes" rows="2" style="width:100%;padding:8px 10px;border:1.5px solid #E4E7ED;border-radius:8px;font-size:0.85rem;resize:vertical;outline:none;box-sizing:border-box;font-family:inherit;" placeholder="Optional notes about this program…"></textarea>
+    </div>
+
+    <div class="program-form-section" id="pm-team-section">
+      <div class="program-form-section-label">Assign to Team <span class="hint">(optional)</span></div>
+      <select id="pm-team-select" style="width:100%;padding:8px 10px;border:1.5px solid #E4E7ED;border-radius:8px;font-size:0.85rem;outline:none;box-sizing:border-box;">
+        <option value="">No team</option>
+      </select>
+    </div>
+
+    <div class="form-submit-row">
+      <button class="btn-ghost" id="programModalCancel">Cancel</button>
+      <button class="btn-primary" id="programModalSave"><i class="fa-solid fa-check"></i> Create Program</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Team Modal ──────────────────────────────────────────────────────── -->
+<div class="modal-overlay hidden" id="teamModal">
+  <div class="modal" style="max-width:480px">
+    <button class="modal-close" id="teamModalClose"><i class="fa-solid fa-xmark"></i></button>
+    <h2 id="teamModalTitle">New Team</h2>
+    <div class="form-group">
+      <label>Team Name <span class="req">*</span></label>
+      <input type="text" id="tm-name" placeholder="e.g. Men's Gymnastics Team" style="width:100%;box-sizing:border-box" />
+    </div>
+    <div class="form-group" style="margin-top:14px">
+      <label>Sport</label>
+      <div class="chip-selector" id="tm-sport-chips" style="margin-top:6px">
+        <button class="chip active" data-val="">General</button>
+        <button class="chip" data-val="gymnastics">Gymnastics</button>
+        <button class="chip" data-val="football">Football</button>
+        <button class="chip" data-val="soccer">Soccer</button>
+        <button class="chip" data-val="basketball">Basketball</button>
+        <button class="chip" data-val="volleyball">Volleyball</button>
+      </div>
+    </div>
+    <div class="form-group" style="margin-top:14px">
+      <label>Notes</label>
+      <textarea id="tm-notes" rows="2" style="width:100%;padding:8px 10px;border:1.5px solid #E4E7ED;border-radius:8px;font-size:0.85rem;resize:vertical;outline:none;box-sizing:border-box;font-family:inherit;" placeholder="Optional notes…"></textarea>
+    </div>
+    <div class="form-submit-row" style="margin-top:20px">
+      <button class="btn-ghost" id="teamModalCancel">Cancel</button>
+      <button class="btn-primary" id="teamModalSave"><i class="fa-solid fa-check"></i> Save Team</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Add Team Member Modal ───────────────────────────────────────────── -->
+<div class="modal-overlay hidden" id="addMemberModal">
+  <div class="modal" style="max-width:480px">
+    <button class="modal-close" id="addMemberModalClose"><i class="fa-solid fa-xmark"></i></button>
+    <h2>Add Athlete to Team</h2>
+    <div class="form-group">
+      <label>Select Athlete</label>
+      <select id="member-athlete-select" style="width:100%;padding:8px 10px;border:1.5px solid #E4E7ED;border-radius:8px;font-size:0.85rem;outline:none;box-sizing:border-box;margin-top:6px">
+        <option value="">— Select an athlete —</option>
+      </select>
+    </div>
+    <div class="form-submit-row" style="margin-top:20px">
+      <button class="btn-ghost" id="addMemberModalCancel">Cancel</button>
+      <button class="btn-primary" id="addMemberModalSave"><i class="fa-solid fa-user-plus"></i> Add to Team</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Session Exercise Modal ────────────────────────────────────────────── -->
+<div class="modal-overlay hidden" id="sessionExModal">
+  <div class="modal modal-session-ex">
+    <button class="modal-close" id="sessionExClose"><i class="fa-solid fa-xmark"></i></button>
+    <h2 id="sessionExTitle">Add Exercise</h2>
+
+    <div class="ex-search-wrap">
+      <i class="fa-solid fa-magnifying-glass search-icon"></i>
+      <input type="text" id="sex-search" placeholder="Search exercises…" autocomplete="off" />
+    </div>
+    <div id="sexSearchResults" class="ex-search-results"></div>
+    <div id="sexSelectedDisplay" class="selected-exercise-display hidden">
+      <i class="fa-solid fa-dumbbell"></i>
+      <span id="sexSelectedName">—</span>
+    </div>
+
+    <!-- Exercise-level parameters (apply to all sets by default) -->
+    <div class="param-grid">
+      <div class="param-group">
+        <label>Sets</label>
+        <input type="number" id="sex-sets" min="1" max="20" placeholder="e.g. 4" />
+      </div>
+      <div class="param-group">
+        <label>Default Reps</label>
+        <input type="text" id="sex-reps" placeholder="e.g. 5, 8-10, AMRAP, 30s" />
+      </div>
+      <div class="param-group">
+        <label>Rest (seconds)</label>
+        <input type="number" id="sex-rest" min="0" placeholder="e.g. 180" />
+      </div>
+      <div class="param-group">
+        <label>Tempo <span class="hint">(e-p-c-p)</span></label>
+        <input type="text" id="sex-tempo" placeholder="e.g. 3-1-2-0" />
+      </div>
+      <div class="param-group full">
+        <label>Notes</label>
+        <textarea id="sex-notes" rows="2" placeholder="Coaching notes, modifications…"></textarea>
+      </div>
+      <!-- Eşleştirmeli Egzersiz (Superset) -->
+      <div class="param-group full" id="pairingSection">
+        <label class="pairing-toggle-label">
+          <input type="checkbox" id="sex-pairing-toggle">
+          <span>Eşleştirmeli Egzersiz <span class="hint">(Superset / A1-A2)</span></span>
+        </label>
+        <div id="pairingOptions" class="hidden pairing-options-row">
+          <div>
+            <label style="font-size:.75rem;color:#6B7280;display:block;margin-bottom:3px">Grup</label>
+            <select id="sex-pairing-group" class="form-input pairing-select">
+              <option value="">—</option>
+              <option>A</option><option>B</option><option>C</option>
+              <option>D</option><option>E</option><option>F</option>
+              <option>G</option><option>H</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:.75rem;color:#6B7280;display:block;margin-bottom:3px">Slot</label>
+            <select id="sex-pairing-slot" class="form-input pairing-select">
+              <option value="">—</option>
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Per-set load prescription table -->
+    <div class="sets-section">
+      <div class="sets-section-header">
+        <span class="sets-section-title">Set Loads</span>
+        <button type="button" class="btn-add-set" id="addSetRowBtn">
+          <i class="fa-solid fa-plus"></i> Add Set
+        </button>
+      </div>
+      <div id="setsTableWrap">
+        <table class="sets-table" id="setsTable">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Reps</th>
+              <th>Type</th>
+              <th>Value</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="setsTableBody"></tbody>
+        </table>
+        <div class="sets-empty" id="setsEmpty">No sets defined — enter a number above and click Generate, or add individually.</div>
+      </div>
+      <button type="button" class="btn-ghost btn-generate-sets" id="generateSetsBtn">
+        <i class="fa-solid fa-wand-magic-sparkles"></i> Generate sets from count
+      </button>
+    </div>
+
+    <div class="modal-footer-actions">
+      <button class="btn-ghost" id="sessionExCancel">Cancel</button>
+      <button class="btn-primary" id="sessionExSave"><i class="fa-solid fa-check"></i> Save Exercise</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── 1RM Add/Edit Modal ─────────────────────────────────────────────────── -->
+<div class="modal-overlay hidden" id="oneRMModal">
+  <div class="modal modal-one-rm">
+    <button class="modal-close" id="ormModalClose"><i class="fa-solid fa-xmark"></i></button>
+    <h2 id="ormModalTitle">Add 1RM Record</h2>
+
+    <!-- Exercise selector -->
+    <div class="program-form-section" style="margin-bottom:14px">
+      <div class="program-form-section-label">Exercise</div>
+      <div class="ex-search-wrap" style="margin-bottom:8px">
+        <i class="fa-solid fa-magnifying-glass search-icon"></i>
+        <input type="text" id="orm-ex-search" placeholder="Search exercises from library…" autocomplete="off" />
+      </div>
+      <div id="ormExSearchResults" class="ex-search-results" style="max-height:140px"></div>
+      <div id="ormSelectedDisplay" class="selected-exercise-display hidden" style="margin-top:6px">
+        <i class="fa-solid fa-dumbbell"></i>
+        <span id="ormSelectedName">—</span>
+      </div>
+    </div>
+
+    <!-- Direct 1RM entry -->
+    <div class="program-form-section" style="margin-bottom:14px">
+      <div class="program-form-section-label">Direct 1RM Entry</div>
+      <div class="param-grid" style="grid-template-columns:1fr 1fr;gap:10px">
+        <div class="param-group">
+          <label>Max Weight (kg)</label>
+          <input type="number" id="orm-weight" min="0" step="0.5" placeholder="e.g. 102.5" />
+        </div>
+        <div class="param-group">
+          <label>Test Date</label>
+          <input type="date" id="orm-date" />
+        </div>
+      </div>
+    </div>
+
+    <!-- 1RM Calculator from sub-max set -->
+    <div class="orm-calc-box">
+      <div class="orm-calc-box-label">— or — Estimate 1RM from a Working Set</div>
+      <div class="orm-calc-row">
+        <div class="param-group">
+          <label>Weight Lifted (kg)</label>
+          <input type="number" id="orm-calc-weight" min="0" step="0.5" placeholder="e.g. 90" />
+        </div>
+        <div class="param-group">
+          <label>Reps Completed</label>
+          <input type="number" id="orm-calc-reps" min="1" max="30" placeholder="e.g. 5" />
+        </div>
+        <div class="param-group" style="flex:0 0 auto">
+          <label>&nbsp;</label>
+          <button class="btn-ghost" id="ormCalcBtn" style="white-space:nowrap"><i class="fa-solid fa-calculator"></i> Calculate</button>
+        </div>
+      </div>
+      <div class="orm-calc-result hidden" id="ormCalcResult">
+        <span class="orm-calc-result-label">Estimated 1RM (Epley formula)</span>
+        <span class="orm-calc-result-value" id="ormCalcValue">— kg</span>
+        <button class="orm-calc-use-btn" id="ormCalcUseBtn">Use this value</button>
+      </div>
+    </div>
+
+    <div class="program-form-section" style="margin-top:14px">
+      <div class="program-form-section-label">Notes</div>
+      <textarea id="orm-notes" rows="2" style="width:100%;padding:8px 10px;border:1.5px solid #E4E7ED;border-radius:8px;font-size:0.85rem;resize:vertical;outline:none;box-sizing:border-box;font-family:inherit;" placeholder="e.g. Fresh test, competition lift, estimated…"></textarea>
+    </div>
+
+    <div class="form-submit-row">
+      <button class="btn-ghost" id="ormModalCancel">Cancel</button>
+      <button class="btn-primary" id="ormModalSave"><i class="fa-solid fa-check"></i> Save Record</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── User Management Modal ─────────────────────────────────────────────── -->
+<div class="modal-overlay hidden" id="usersModal">
+  <div class="modal modal-users">
+    <button class="modal-close" id="usersModalClose"><i class="fa-solid fa-xmark"></i></button>
+    <h2>Manage Users</h2>
+
+    <div id="usersList" class="users-list"></div>
+
+    <div class="users-add-section">
+      <div class="users-add-title">Add New User</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Username</label>
+          <input type="text" id="newUserUsername" placeholder="username" autocomplete="off" />
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" id="newUserPassword" placeholder="password" autocomplete="new-password" />
+        </div>
+      </div>
+      <div class="form-group" style="margin-top:10px">
+        <label>Role</label>
+        <div class="chip-selector" id="newUserRoleChips" style="margin-top:6px">
+          <button class="chip active" data-val="athlete">Athlete</button>
+          <button class="chip" data-val="staff">Staff</button>
+          <button class="chip" data-val="coach">Coach</button>
+        </div>
+      </div>
+      <div style="margin-top:14px;display:flex;justify-content:flex-end">
+        <button class="btn-primary" id="addUserBtn">
+          <i class="fa-solid fa-plus"></i> Add User
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Athlete Form Modal ────────────────────────────────────────────────── -->
+<div class="modal-overlay hidden" id="athleteModal">
+  <div class="modal modal-athlete">
+    <button class="modal-close" id="athleteModalClose"><i class="fa-solid fa-xmark"></i></button>
+    <h2 id="athleteModalTitle">New Athlete</h2>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Full Name <span class="req">*</span></label>
+        <input type="text" id="am-name" placeholder="e.g. Ahmet Yılmaz" />
+      </div>
+      <div class="form-group">
+        <label>Birth Year</label>
+        <input type="number" id="am-birth-year" min="1970" max="2015" placeholder="e.g. 2001" />
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="program-form-section">
+        <div class="program-form-section-label">Sport</div>
+        <div class="chip-selector" id="am-sport-chips">
+          <button class="chip active" data-val="">General</button>
+          <button class="chip" data-val="gymnastics">Gymnastics</button>
+          <button class="chip" data-val="football">Football</button>
+          <button class="chip" data-val="soccer">Soccer</button>
+          <button class="chip" data-val="basketball">Basketball</button>
+          <button class="chip" data-val="volleyball">Volleyball</button>
+        </div>
+      </div>
+      <div class="program-form-section">
+        <div class="program-form-section-label">Gender</div>
+        <div class="chip-selector" id="am-gender-chips">
+          <button class="chip active" data-val="">—</button>
+          <button class="chip" data-val="male">Male</button>
+          <button class="chip" data-val="female">Female</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Position / Event</label>
+        <input type="text" id="am-position" placeholder="e.g. Pommel Horse, Wide Receiver…" />
+      </div>
+      <div class="program-form-section">
+        <div class="program-form-section-label">Level</div>
+        <div class="chip-selector" id="am-level-chips">
+          <button class="chip active" data-val="intermediate">Intermediate</button>
+          <button class="chip" data-val="beginner">Beginner</button>
+          <button class="chip" data-val="advanced">Advanced</button>
+          <button class="chip" data-val="elite">Elite</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Login credentials section -->
+    <div class="am-login-section">
+      <div class="am-login-section-title"><i class="fa-solid fa-key"></i> Login Credentials</div>
+      <div id="am-username-preview" class="am-username-preview hidden">
+        <i class="fa-solid fa-user"></i>
+        <span class="am-username-label">Username will be:</span>
+        <strong id="am-username-value"></strong>
+      </div>
+      <div id="am-existing-username" class="am-existing-account hidden">
+        <i class="fa-solid fa-circle-check" style="color:#10B981"></i>
+        <span>Has account: <strong id="am-existing-username-value"></strong></span>
+      </div>
+      <div class="form-row" style="margin-top:10px">
+        <div class="form-group">
+          <label id="am-password-label">Password <span class="req">*</span></label>
+          <input type="password" id="am-password" autocomplete="new-password" placeholder="Min. 4 characters" />
+        </div>
+        <div class="form-group">
+          <label>Confirm Password</label>
+          <input type="password" id="am-password-confirm" autocomplete="new-password" placeholder="Re-enter password" />
+        </div>
+      </div>
+      <div id="am-password-hint" class="am-password-hint hidden">Leave blank to keep current password</div>
+    </div>
+
+    <div class="form-group" style="margin-top:12px">
+      <label>Notes</label>
+      <textarea id="am-notes" rows="2" style="width:100%;padding:8px 10px;border:1.5px solid #E4E7ED;border-radius:8px;font-size:0.85rem;resize:vertical;outline:none;box-sizing:border-box;font-family:inherit;" placeholder="Injury history, training history, goals…"></textarea>
+    </div>
+
+    <div class="form-submit-row">
+      <button class="btn-ghost" id="athleteModalCancel">Cancel</button>
+      <button class="btn-primary" id="athleteModalSave"><i class="fa-solid fa-check"></i> Save Athlete</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Add Category Modal ────────────────────────────────────────────────── -->
+<div class="modal-overlay hidden" id="categoryModal">
+  <div class="modal" style="max-width:360px">
+    <button class="modal-close" id="categoryModalClose"><i class="fa-solid fa-xmark"></i></button>
+    <h2>New Movement Pattern</h2>
+    <div class="form-group" style="margin-top:16px">
+      <label>Name <span class="req">*</span></label>
+      <input type="text" id="categoryName" placeholder="e.g. Carry – Unilateral" autocomplete="off" />
+    </div>
+    <div class="form-group" style="margin-top:12px">
+      <label>Color</label>
+      <input type="color" id="categoryColor" value="#4A7CF6" style="width:48px;height:32px;padding:2px;border:1px solid #E5E7EB;border-radius:6px;cursor:pointer" />
+    </div>
+    <div style="margin-top:20px;display:flex;justify-content:flex-end">
+      <button class="btn-primary" id="saveCategoryBtn">
+        <i class="fa-solid fa-plus"></i> Add
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Gymnastics: Add/Edit Competition Event Modal ──────────────────────── -->
+<div class="modal-overlay hidden" id="gymEventModal">
+  <div class="modal" style="max-width:480px">
+    <button class="modal-close" id="gymEventModalClose"><i class="fa-solid fa-xmark"></i></button>
+    <h2 id="gymEventModalTitle">Add Competition</h2>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px">
+      <div class="form-group" style="grid-column:span 2">
+        <label>Name <span class="req">*</span></label>
+        <input type="text" id="gem-name" placeholder="e.g. National Championships 2025" autocomplete="off" />
+      </div>
+      <div class="form-group">
+        <label>Date <span class="req">*</span></label>
+        <input type="date" id="gem-date" />
+      </div>
+      <div class="form-group">
+        <label>Level</label>
+        <select id="gem-level" class="stats-select" style="min-width:0;width:100%">
+          <option value="">— Select —</option>
+          <option value="club">Club</option>
+          <option value="national">National</option>
+          <option value="international">International</option>
+        </select>
+      </div>
+      <div class="form-group" style="grid-column:span 2">
+        <label>Location</label>
+        <input type="text" id="gem-location" placeholder="e.g. Ankara, Turkey" autocomplete="off" />
+      </div>
+      <div class="form-group" style="grid-column:span 2">
+        <label>Notes</label>
+        <textarea id="gem-notes" rows="2" style="width:100%;padding:8px 10px;border:1.5px solid #E4E7ED;border-radius:8px;font-size:0.85rem;resize:vertical;outline:none;box-sizing:border-box;font-family:inherit;"></textarea>
+      </div>
+    </div>
+    <div class="form-submit-row" style="margin-top:20px">
+      <button class="btn-ghost" id="gymEventModalCancel">Cancel</button>
+      <button class="btn-primary" id="gymEventModalSave">
+        <i class="fa-solid fa-check"></i> Save Competition
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Gymnastics: Add/Edit Competition Result Modal ─────────────────────── -->
+<div class="modal-overlay hidden" id="gymResultModal">
+  <div class="modal" style="max-width:520px">
+    <button class="modal-close" id="gymResultModalClose"><i class="fa-solid fa-xmark"></i></button>
+    <h2 id="gymResultModalTitle">Add Competition Result</h2>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px">
+      <div class="form-group" style="grid-column:span 2">
+        <label>Competition <span class="req">*</span></label>
+        <select id="grm-event" class="stats-select" style="min-width:0;width:100%">
+          <option value="">— Select competition —</option>
+        </select>
+      </div>
+      <div class="form-group" style="grid-column:span 2">
+        <label>Apparatus <span class="req">*</span></label>
+        <select id="grm-apparatus" class="stats-select" style="min-width:0;width:100%">
+          <option value="">— Select apparatus —</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>D Score <span style="font-size:0.75rem;color:#9CA3AF">(Difficulty)</span></label>
+        <input type="number" id="grm-dscore" min="0" max="20" step="0.1" placeholder="e.g. 5.6" />
+      </div>
+      <div class="form-group">
+        <label>E Score <span style="font-size:0.75rem;color:#9CA3AF">(Execution, max 10)</span></label>
+        <input type="number" id="grm-escore" min="0" max="10" step="0.001" placeholder="e.g. 8.333" />
+      </div>
+      <div class="form-group">
+        <label>Penalty</label>
+        <input type="number" id="grm-penalty" min="0" step="0.1" value="0" placeholder="0" />
+      </div>
+      <div class="form-group">
+        <label>Bonus Puan</label>
+        <input type="number" id="grm-bonus" min="0" step="0.1" value="0" placeholder="0" />
+      </div>
+      <!-- Vault Jump 2 (hidden by default, shown when apparatus = VT) -->
+      <div id="grm-vault-jump2" style="display:none;grid-column:span 2">
+        <hr style="border:none;border-top:1px dashed #D1D5DB;margin:8px 0">
+        <div style="font-weight:600;font-size:0.85rem;color:#6B7280;margin-bottom:8px">
+          Atlayış 2 <span style="font-size:0.75rem;font-weight:400">(Sadece Vault)</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div class="form-group">
+            <label>D Score 2 <span style="font-size:0.75rem;color:#9CA3AF">(Difficulty)</span></label>
+            <input type="number" id="grm-dscore2" min="0" max="20" step="0.1" placeholder="e.g. 5.2" />
+          </div>
+          <div class="form-group">
+            <label>E Score 2 <span style="font-size:0.75rem;color:#9CA3AF">(Execution, max 10)</span></label>
+            <input type="number" id="grm-escore2" min="0" max="10" step="0.001" placeholder="e.g. 8.100" />
+          </div>
+          <div class="form-group">
+            <label>Penalty 2</label>
+            <input type="number" id="grm-penalty2" min="0" step="0.1" value="0" placeholder="0" />
+          </div>
+          <div class="form-group">
+            <label>Bonus 2</label>
+            <input type="number" id="grm-bonus2" min="0" step="0.1" value="0" placeholder="0" />
+          </div>
+        </div>
+      </div>
+      <div class="form-group">
+        <label id="grm-final-label">Final Score <span style="font-size:0.75rem;color:#9CA3AF">(D + E − Penalty + Bonus)</span></label>
+        <input type="text" id="grm-final" readonly style="background:#F3F4F6;cursor:not-allowed;color:#374151;font-weight:700" placeholder="auto-calculated" />
+      </div>
+      <div class="form-group">
+        <label>Rank</label>
+        <input type="number" id="grm-rank" min="1" placeholder="e.g. 3" />
+      </div>
+      <div class="form-group">
+        <label>Notes</label>
+        <input type="text" id="grm-notes" placeholder="Optional" autocomplete="off" />
+      </div>
+    </div>
+    <div class="form-submit-row" style="margin-top:20px">
+      <button class="btn-ghost" id="gymResultModalCancel">Cancel</button>
+      <button class="btn-primary" id="gymResultModalSave">
+        <i class="fa-solid fa-check"></i> Save Result
+      </button>
+    </div>
+  </div>
+</div>
+
+<script src="/static/app.js?v=2"></script>
+</body>
+</html>
