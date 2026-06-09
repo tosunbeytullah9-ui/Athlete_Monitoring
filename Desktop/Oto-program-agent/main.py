@@ -329,56 +329,6 @@ class MovementPatternDB(Base):
     name  = Column(String,  nullable=False, unique=True)
     color = Column(String,  nullable=True)   # hex color, e.g. "#FF5733"
 
-
-# ── Gymnastics Competition Models ─────────────────────────────────────────────
-
-class GuestAthleteDB(Base):
-    __tablename__ = "guest_athletes"
-
-    id         = Column(Integer, primary_key=True, index=True)
-    name       = Column(String,  nullable=False)
-    country    = Column(String,  nullable=True)
-    gender     = Column(String,  nullable=False)   # "male" or "female"
-    birth_year = Column(Integer, nullable=True)
-    notes      = Column(Text,    nullable=True)
-    created_at = Column(String,  nullable=False)
-
-
-class CompetitionEventDB(Base):
-    __tablename__ = "competition_events"
-
-    id                  = Column(Integer, primary_key=True, index=True)
-    name                = Column(String,  nullable=False)
-    date                = Column(String,  nullable=False)   # YYYY-MM-DD
-    location            = Column(String,  nullable=True)
-    level               = Column(String,  nullable=True)    # club/national/international
-    notes               = Column(Text,    nullable=True)
-    created_by_coach_id = Column(Integer, nullable=True)
-    created_at          = Column(String,  nullable=False)
-
-
-class CompetitionResultDB(Base):
-    __tablename__ = "competition_results"
-
-    id                   = Column(Integer, primary_key=True, index=True)
-    competition_event_id = Column(Integer, nullable=False)
-    athlete_id           = Column(Integer, nullable=True)    # FK to athletes
-    guest_athlete_id     = Column(Integer, nullable=True)    # FK to guest_athletes
-    apparatus            = Column(String,  nullable=False)   # e.g. "VT", "FX"
-    d_score              = Column(Float,   nullable=False, default=0.0)
-    e_score              = Column(Float,   nullable=False, default=0.0)
-    penalty              = Column(Float,   nullable=False, default=0.0)
-    bonus_point          = Column(Float,   nullable=False, default=0.0)
-    d_score_2            = Column(Float,   nullable=True)    # Vault jump 2
-    e_score_2            = Column(Float,   nullable=True)
-    penalty_2            = Column(Float,   nullable=True)
-    bonus_point_2        = Column(Float,   nullable=True)
-    final_score          = Column(Float,   nullable=True)    # d + e - penalty + bonus
-    rank                 = Column(Integer, nullable=True)
-    notes                = Column(Text,    nullable=True)
-    created_at           = Column(String,  nullable=False)
-
-
 Base.metadata.create_all(bind=engine)
 
 # ── Safe migrations ────────────────────────────────────────────────────────────
@@ -393,11 +343,6 @@ def _migrate():
             "ALTER TABLE users ADD COLUMN email TEXT",
             "ALTER TABLE session_exercises ADD COLUMN pairing_group TEXT",
             "ALTER TABLE session_exercises ADD COLUMN pairing_slot INTEGER",
-            "ALTER TABLE competition_results ADD COLUMN bonus_point FLOAT DEFAULT 0.0",
-            "ALTER TABLE competition_results ADD COLUMN d_score_2 FLOAT",
-            "ALTER TABLE competition_results ADD COLUMN e_score_2 FLOAT",
-            "ALTER TABLE competition_results ADD COLUMN penalty_2 FLOAT",
-            "ALTER TABLE competition_results ADD COLUMN bonus_point_2 FLOAT",
         ]:
             try:
                 conn.execute(text(stmt))
@@ -564,37 +509,6 @@ class TeamIn(BaseModel):
 
 class TeamMemberIn(BaseModel):
     athlete_id: int
-
-class GuestAthleteIn(BaseModel):
-    name:       str
-    country:    Optional[str] = None
-    gender:     str                     # "male" or "female"
-    birth_year: Optional[int] = None
-    notes:      Optional[str] = None
-
-class CompetitionEventIn(BaseModel):
-    name:     str
-    date:     str                       # YYYY-MM-DD
-    location: Optional[str] = None
-    level:    Optional[str] = None      # club/national/international
-    notes:    Optional[str] = None
-
-class CompetitionResultIn(BaseModel):
-    competition_event_id: int
-    athlete_id:           Optional[int]   = None
-    guest_athlete_id:     Optional[int]   = None
-    apparatus:            str
-    d_score:              float           = 0.0
-    e_score:              float           = 0.0
-    penalty:              float           = 0.0
-    bonus_point:          float           = 0.0
-    d_score_2:            Optional[float] = None
-    e_score_2:            Optional[float] = None
-    penalty_2:            Optional[float] = None
-    bonus_point_2:        Optional[float] = None
-    rank:                 Optional[int]   = None
-    notes:                Optional[str]   = None
-
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
 def _athlete_username(name: str, db: Session, exclude_id: int = None) -> str:
@@ -807,73 +721,6 @@ def _row_team(t: TeamDB, db: Session = None) -> dict:
     return d
 
 
-def _row_guest_athlete(g: GuestAthleteDB) -> dict:
-    return {
-        "id":         g.id,
-        "name":       g.name,
-        "country":    g.country,
-        "gender":     g.gender,
-        "birth_year": g.birth_year,
-        "notes":      g.notes,
-        "created_at": g.created_at,
-    }
-
-
-def _row_competition_event(ev: CompetitionEventDB) -> dict:
-    return {
-        "id":                   ev.id,
-        "name":                 ev.name,
-        "date":                 ev.date,
-        "location":             ev.location,
-        "level":                ev.level,
-        "notes":                ev.notes,
-        "created_by_coach_id":  ev.created_by_coach_id,
-        "created_at":           ev.created_at,
-    }
-
-
-def _row_competition_result(r: CompetitionResultDB, db: Session) -> dict:
-    athlete_name       = None
-    guest_athlete_name = None
-    event_name         = None
-    event_date         = None
-    if r.athlete_id:
-        a = db.get(AthleteDB, r.athlete_id)
-        if a:
-            athlete_name = a.name
-    if r.guest_athlete_id:
-        g = db.get(GuestAthleteDB, r.guest_athlete_id)
-        if g:
-            guest_athlete_name = g.name
-    ev = db.get(CompetitionEventDB, r.competition_event_id)
-    if ev:
-        event_name = ev.name
-        event_date = ev.date
-    return {
-        "id":                       r.id,
-        "competition_event_id":     r.competition_event_id,
-        "competition_event_name":   event_name,
-        "competition_event_date":   event_date,
-        "athlete_id":               r.athlete_id,
-        "athlete_name":             athlete_name,
-        "guest_athlete_id":         r.guest_athlete_id,
-        "guest_athlete_name":       guest_athlete_name,
-        "apparatus":                r.apparatus,
-        "d_score":                  r.d_score,
-        "e_score":                  r.e_score,
-        "penalty":                  r.penalty,
-        "bonus_point":              r.bonus_point or 0.0,
-        "d_score_2":                r.d_score_2,
-        "e_score_2":                r.e_score_2,
-        "penalty_2":                r.penalty_2,
-        "bonus_point_2":            r.bonus_point_2,
-        "final_score":              r.final_score,
-        "rank":                     r.rank,
-        "notes":                    r.notes,
-        "created_at":               r.created_at,
-    }
-
-
 def _row_set(s: SessionExerciseSetDB) -> dict:
     return {
         "id":                  s.id,
@@ -979,12 +826,6 @@ async def auth_middleware(request: Request, call_next):
     elif path.startswith("/api/athletes") and method in ("POST", "PUT", "DELETE"):
         coach_or_staff_only = True
     elif path.startswith("/api/teams") and method in ("POST", "PUT", "DELETE"):
-        coach_or_staff_only = True
-    elif path.startswith("/api/guest-athletes") and method in ("POST", "PUT", "DELETE"):
-        coach_or_staff_only = True
-    elif path.startswith("/api/competition-events") and method in ("POST", "PUT", "DELETE"):
-        coach_or_staff_only = True
-    elif path.startswith("/api/competition-results") and method in ("POST", "PUT", "DELETE"):
         coach_or_staff_only = True
 
     if coach_only_strict and role != "coach":
@@ -2399,202 +2240,6 @@ def get_team_programs(tid: int, db: Session = Depends(get_db)):
         d["phases"] = [w.phase for w in weeks]
         result.append(d)
     return result
-
-
-# ── Guest Athletes ─────────────────────────────────────────────────────────────
-
-@app.get("/api/guest-athletes")
-def list_guest_athletes(db: Session = Depends(get_db)):
-    rows = db.query(GuestAthleteDB).order_by(GuestAthleteDB.name).all()
-    return [_row_guest_athlete(g) for g in rows]
-
-
-@app.post("/api/guest-athletes", status_code=201)
-def create_guest_athlete(data: GuestAthleteIn, db: Session = Depends(get_db)):
-    if data.gender not in ("male", "female"):
-        raise HTTPException(400, "gender must be 'male' or 'female'")
-    g = GuestAthleteDB(
-        name       = data.name,
-        country    = data.country,
-        gender     = data.gender,
-        birth_year = data.birth_year,
-        notes      = data.notes,
-        created_at = datetime.utcnow().isoformat(),
-    )
-    db.add(g); db.commit(); db.refresh(g)
-    return _row_guest_athlete(g)
-
-
-@app.put("/api/guest-athletes/{gid}")
-def update_guest_athlete(gid: int, data: GuestAthleteIn, db: Session = Depends(get_db)):
-    g = db.get(GuestAthleteDB, gid)
-    if not g:
-        raise HTTPException(404, "Guest athlete not found")
-    if data.gender not in ("male", "female"):
-        raise HTTPException(400, "gender must be 'male' or 'female'")
-    g.name       = data.name
-    g.country    = data.country
-    g.gender     = data.gender
-    g.birth_year = data.birth_year
-    g.notes      = data.notes
-    db.commit(); db.refresh(g)
-    return _row_guest_athlete(g)
-
-
-@app.delete("/api/guest-athletes/{gid}", status_code=204)
-def delete_guest_athlete(gid: int, db: Session = Depends(get_db)):
-    g = db.get(GuestAthleteDB, gid)
-    if not g:
-        raise HTTPException(404, "Guest athlete not found")
-    db.delete(g); db.commit()
-
-
-# ── Competition Events ─────────────────────────────────────────────────────────
-
-@app.get("/api/competition-events")
-def list_competition_events(db: Session = Depends(get_db)):
-    rows = db.query(CompetitionEventDB).order_by(CompetitionEventDB.date.desc()).all()
-    return [_row_competition_event(ev) for ev in rows]
-
-
-@app.post("/api/competition-events", status_code=201)
-def create_competition_event(data: CompetitionEventIn, request: Request, db: Session = Depends(get_db)):
-    ev = CompetitionEventDB(
-        name                = data.name,
-        date                = data.date,
-        location            = data.location,
-        level               = data.level,
-        notes               = data.notes,
-        created_by_coach_id = request.state.user_id,
-        created_at          = datetime.utcnow().isoformat(),
-    )
-    db.add(ev); db.commit(); db.refresh(ev)
-    return _row_competition_event(ev)
-
-
-@app.put("/api/competition-events/{ceid}")
-def update_competition_event(ceid: int, data: CompetitionEventIn, db: Session = Depends(get_db)):
-    ev = db.get(CompetitionEventDB, ceid)
-    if not ev:
-        raise HTTPException(404, "Competition event not found")
-    ev.name     = data.name
-    ev.date     = data.date
-    ev.location = data.location
-    ev.level    = data.level
-    ev.notes    = data.notes
-    db.commit(); db.refresh(ev)
-    return _row_competition_event(ev)
-
-
-@app.delete("/api/competition-events/{ceid}", status_code=204)
-def delete_competition_event(ceid: int, db: Session = Depends(get_db)):
-    ev = db.get(CompetitionEventDB, ceid)
-    if not ev:
-        raise HTTPException(404, "Competition event not found")
-    db.delete(ev); db.commit()
-
-
-# ── Competition Results ────────────────────────────────────────────────────────
-
-@app.get("/api/competition-results")
-def list_competition_results(
-    athlete_id:           Optional[int] = Query(None),
-    guest_athlete_id:     Optional[int] = Query(None),
-    competition_event_id: Optional[int] = Query(None),
-    apparatus:            Optional[str] = Query(None),
-    db: Session = Depends(get_db),
-):
-    q = db.query(CompetitionResultDB)
-    if athlete_id           is not None: q = q.filter(CompetitionResultDB.athlete_id == athlete_id)
-    if guest_athlete_id     is not None: q = q.filter(CompetitionResultDB.guest_athlete_id == guest_athlete_id)
-    if competition_event_id is not None: q = q.filter(CompetitionResultDB.competition_event_id == competition_event_id)
-    if apparatus:                         q = q.filter(CompetitionResultDB.apparatus == apparatus)
-    rows = q.order_by(CompetitionResultDB.created_at.desc()).all()
-    return [_row_competition_result(r, db) for r in rows]
-
-
-@app.post("/api/competition-results", status_code=201)
-def create_competition_result(data: CompetitionResultIn, db: Session = Depends(get_db)):
-    if not data.athlete_id and not data.guest_athlete_id:
-        raise HTTPException(400, "Either athlete_id or guest_athlete_id must be provided")
-    if data.athlete_id and data.guest_athlete_id:
-        raise HTTPException(400, "Only one of athlete_id or guest_athlete_id may be set")
-    jump1 = round(data.d_score + data.e_score - data.penalty + data.bonus_point, 3)
-    if data.apparatus == "VT" and data.d_score_2 is not None:
-        jump2 = round((data.d_score_2 or 0) + (data.e_score_2 or 0) - (data.penalty_2 or 0) + (data.bonus_point_2 or 0), 3)
-        final = round((jump1 + jump2) / 2, 3)
-    else:
-        final = jump1
-    r = CompetitionResultDB(
-        competition_event_id = data.competition_event_id,
-        athlete_id           = data.athlete_id,
-        guest_athlete_id     = data.guest_athlete_id,
-        apparatus            = data.apparatus,
-        d_score              = data.d_score,
-        e_score              = data.e_score,
-        penalty              = data.penalty,
-        bonus_point          = data.bonus_point,
-        d_score_2            = data.d_score_2 if data.apparatus == "VT" else None,
-        e_score_2            = data.e_score_2 if data.apparatus == "VT" else None,
-        penalty_2            = data.penalty_2 if data.apparatus == "VT" else None,
-        bonus_point_2        = data.bonus_point_2 if data.apparatus == "VT" else None,
-        final_score          = final,
-        rank                 = data.rank,
-        notes                = data.notes,
-        created_at           = datetime.utcnow().isoformat(),
-    )
-    db.add(r); db.commit(); db.refresh(r)
-    return _row_competition_result(r, db)
-
-
-@app.put("/api/competition-results/{rid}")
-def update_competition_result(rid: int, data: CompetitionResultIn, db: Session = Depends(get_db)):
-    r = db.get(CompetitionResultDB, rid)
-    if not r:
-        raise HTTPException(404, "Result not found")
-    if not data.athlete_id and not data.guest_athlete_id:
-        raise HTTPException(400, "Either athlete_id or guest_athlete_id must be provided")
-    if data.athlete_id and data.guest_athlete_id:
-        raise HTTPException(400, "Only one of athlete_id or guest_athlete_id may be set")
-    r.competition_event_id = data.competition_event_id
-    r.athlete_id           = data.athlete_id
-    r.guest_athlete_id     = data.guest_athlete_id
-    r.apparatus            = data.apparatus
-    r.d_score              = data.d_score
-    r.e_score              = data.e_score
-    r.penalty              = data.penalty
-    r.bonus_point          = data.bonus_point
-    r.d_score_2            = data.d_score_2 if data.apparatus == "VT" else None
-    r.e_score_2            = data.e_score_2 if data.apparatus == "VT" else None
-    r.penalty_2            = data.penalty_2 if data.apparatus == "VT" else None
-    r.bonus_point_2        = data.bonus_point_2 if data.apparatus == "VT" else None
-    jump1 = round(data.d_score + data.e_score - data.penalty + data.bonus_point, 3)
-    if data.apparatus == "VT" and data.d_score_2 is not None:
-        jump2 = round((data.d_score_2 or 0) + (data.e_score_2 or 0) - (data.penalty_2 or 0) + (data.bonus_point_2 or 0), 3)
-        r.final_score = round((jump1 + jump2) / 2, 3)
-    else:
-        r.final_score = jump1
-    r.rank                 = data.rank
-    r.notes                = data.notes
-    db.commit(); db.refresh(r)
-    return _row_competition_result(r, db)
-
-
-@app.delete("/api/competition-results/{rid}", status_code=204)
-def delete_competition_result(rid: int, db: Session = Depends(get_db)):
-    r = db.get(CompetitionResultDB, rid)
-    if not r:
-        raise HTTPException(404, "Result not found")
-    db.delete(r); db.commit()
-
-
-@app.get("/api/athletes/{aid}/competition-results")
-def get_athlete_competition_results(aid: int, db: Session = Depends(get_db)):
-    rows = db.query(CompetitionResultDB).filter(
-        CompetitionResultDB.athlete_id == aid
-    ).order_by(CompetitionResultDB.created_at.desc()).all()
-    return [_row_competition_result(r, db) for r in rows]
-
 
 # ── Startup ────────────────────────────────────────────────────────────────────
 
