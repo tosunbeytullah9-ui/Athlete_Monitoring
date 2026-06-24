@@ -924,6 +924,7 @@ function switchView(view) {
   const isTeams    = view === "teams";
   const isTeamDet  = view === "team-detail";
   const isStats    = view === "stats";
+  const isLM       = view === "load-monitoring";
 
   $("libraryView").classList.toggle("hidden", !isLib);
   $("sidebar").classList.toggle("hidden", !isLib);
@@ -937,9 +938,11 @@ function switchView(view) {
   $("teamsView").classList.toggle("hidden", !isTeams);
   $("teamDetailView").classList.toggle("hidden", !isTeamDet);
   $("statsView").classList.toggle("hidden", !isStats);
+  $("loadMonitoringView").classList.toggle("hidden", !isLM);
 
   const isCoachOrStaff = ["coach", "staff"].includes(state.currentUser?.role);
   $("addExerciseBtn").classList.toggle("hidden", !isLib);
+  $("importExcelBtn").classList.toggle("hidden", !isProg || !isCoachOrStaff);
   $("newProgramBtn").classList.toggle("hidden", !isProg);
   $("addOneRMBtn").classList.toggle("hidden", !isORM || !isCoachOrStaff);
 
@@ -949,12 +952,14 @@ function switchView(view) {
   $("tabAthletes").classList.toggle("active", isAthletes || isAthDet);
   $("tabTeams").classList.toggle("active", isTeams || isTeamDet);
   $("tabStats").classList.toggle("active", isStats);
+  $("tabLoadMonitoring").classList.toggle("active", isLM);
 
   if (isProg) loadPrograms();
   if (isORM)  loadOneRM();
   if (isAthletes) loadAthletes();
   if (isTeams) loadTeams();
   if (isStats) loadStats();
+  if (isLM)   initLoadMonitoring();
 }
 
 $("tabLibrary").addEventListener("click",  () => switchView("library"));
@@ -963,8 +968,129 @@ $("tabOneRM").addEventListener("click",    () => switchView("one-rm"));
 $("tabAthletes").addEventListener("click", () => switchView("athletes"));
 $("tabTeams").addEventListener("click",    () => switchView("teams"));
 $("tabStats").addEventListener("click",    () => switchView("stats"));
+$("tabLoadMonitoring").addEventListener("click", () => switchView("load-monitoring"));
 $("newProgramBtn").addEventListener("click", openNewProgramModal);
 $("addOneRMBtn").addEventListener("click", () => openOneRMModal());
+$("importExcelBtn").addEventListener("click", openImportExcelModal);
+$("importExcelInput").addEventListener("change", handleExcelImport);
+$("importExcelModalClose").addEventListener("click", closeImportExcelModal);
+$("importExcelModalCancel").addEventListener("click", closeImportExcelModal);
+$("importExcelModalConfirm").addEventListener("click", () => $("importExcelInput").click());
+
+// Chip toggle for assign type
+$("importAssignChips").addEventListener("click", e => {
+  const chip = e.target.closest(".chip");
+  if (!chip) return;
+  $("importAssignChips").querySelectorAll(".chip").forEach(c => c.classList.remove("active"));
+  chip.classList.add("active");
+  const val = chip.dataset.val;
+  $("importAthleteSection").classList.toggle("hidden", val !== "athlete");
+  $("importTeamSection").classList.toggle("hidden", val !== "team");
+});
+
+async function openImportExcelModal() {
+  // Ensure athletes and teams are loaded
+  if (!state.athletes?.length) {
+    const athletes = await apiFetch("/api/athletes").catch(() => []);
+    state.athletes = athletes;
+    aState.athletes = athletes;
+  }
+  if (!tState.teams?.length) {
+    const teams = await apiFetch("/api/teams").catch(() => []);
+    tState.teams = teams;
+  }
+
+  // Populate athlete dropdown
+  const aSel = $("importAthleteSelect");
+  aSel.innerHTML = '<option value="">— Sporcu seçin —</option>';
+  (state.athletes || []).forEach(a => {
+    const opt = document.createElement("option");
+    opt.value = a.id;
+    opt.textContent = a.name;
+    aSel.appendChild(opt);
+  });
+
+  // Populate team dropdown
+  const tSel = $("importTeamSelect");
+  tSel.innerHTML = '<option value="">— Takım seçin —</option>';
+  (tState.teams || []).forEach(t => {
+    const opt = document.createElement("option");
+    opt.value = t.id;
+    opt.textContent = t.name;
+    tSel.appendChild(opt);
+  });
+
+  // Reset chips to "none"
+  $("importAssignChips").querySelectorAll(".chip").forEach(c =>
+    c.classList.toggle("active", c.dataset.val === "none")
+  );
+  $("importAthleteSection").classList.add("hidden");
+  $("importTeamSection").classList.add("hidden");
+
+  $("importExcelModal").classList.remove("hidden");
+}
+
+function closeImportExcelModal() {
+  $("importExcelModal").classList.add("hidden");
+  $("importExcelInput").value = "";
+}
+
+async function handleExcelImport(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  e.target.value = "";
+
+  closeImportExcelModal();
+
+  const assignType = $("importAssignChips").querySelector(".chip.active")?.dataset.val || "none";
+  const athleteId  = assignType === "athlete" ? $("importAthleteSelect").value  : "";
+  const teamId     = assignType === "team"    ? $("importTeamSelect").value     : "";
+
+  const btn = $("importExcelBtn");
+  const originalHTML = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span class="btn-text"> İçe Aktarılıyor…</span>';
+
+  try {
+    const fd = new FormData();
+    fd.append("file", file);
+    if (athleteId) fd.append("athlete_id", athleteId);
+    if (teamId)    fd.append("team_id",    teamId);
+
+    const res = await fetch("/api/import/excel", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${state.token}` },
+      body: fd,
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "İçe aktarma başarısız");
+
+    let msg = `${data.imported} program oluşturuldu.`;
+    if (assignType === "athlete" && athleteId) {
+      const a = (state.athletes || []).find(x => String(x.id) === String(athleteId));
+      if (a) msg += `\nAtandı: ${a.name}`;
+    } else if (assignType === "team" && teamId) {
+      const t = (tState.teams || []).find(x => String(x.id) === String(teamId));
+      if (t) msg += `\nAtandı: ${t.name}`;
+    }
+    if (data.unmatched_exercises?.length) {
+      msg += `\n\nEşleşmeyen egzersizler (${data.unmatched_exercises.length}):\n${data.unmatched_exercises.join(", ")}`;
+    }
+    alert(msg);
+    await loadPrograms();
+    if (assignType === "team" && teamId && tState.currentTeam?.id === parseInt(teamId)) {
+      await loadTeamPrograms(parseInt(teamId));
+    }
+    if (assignType === "athlete" && athleteId && aState.currentAthlete?.id === parseInt(athleteId)) {
+      await loadAthletePrograms(parseInt(athleteId));
+    }
+  } catch (err) {
+    alert("Hata: " + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = originalHTML;
+  }
+}
 
 /* ── Load & render program cards ──────────────────────────────────────────── */
 async function loadPrograms() {
@@ -1196,9 +1322,8 @@ function renderWeekTimeline() {
     block.style.background = color;
     block.innerHTML = `
       <div class="week-block-num">W${w.week_number}</div>
-      <div class="week-block-phase">${label}</div>
     `;
-    block.title = `Week ${w.week_number}: ${w.phase || "no phase"}`;
+    block.title = `Week ${w.week_number}`;
     block.addEventListener("click", () => {
       pState.activeWeekNum = w.week_number;
       renderWeekTimeline();
@@ -1216,9 +1341,7 @@ function renderSessionGrid() {
 
   if (!week) { grid.innerHTML = ""; return; }
 
-  const phaseLabel = week.phase
-    ? ` <span style="color:${PHASE_COLORS[week.phase]};font-weight:600">(${week.phase})</span>` : "";
-  title.innerHTML = `Week ${week.week_number} Sessions${phaseLabel}`;
+  title.innerHTML = `Week ${week.week_number} Sessions`;
 
   grid.style.setProperty("--days", p.days_per_week);
   grid.innerHTML = "";
@@ -1585,7 +1708,39 @@ async function deleteSessionEx(seid) {
 /* ── Session exercise modal ───────────────────────────────────────────────── */
 let sexSearchTimer;
 
-function openSessionExModal(sessionId, exData) {
+async function _populateSexCategories() {
+  const sel = $("sex-category");
+  const current = sel.value;
+  sel.innerHTML = `<option value="">— Kategori seçin —</option>`;
+  const meta = await apiFetch("/api/meta");
+  (meta.movement_patterns || []).forEach(p => {
+    const opt = document.createElement("option");
+    opt.value = p;
+    opt.textContent = p;
+    if (p === current) opt.selected = true;
+    sel.appendChild(opt);
+  });
+}
+
+function _sexShowSelectionPhase(ex) {
+  $("sexStep1").classList.add("hidden");
+  $("sexStep2").classList.add("hidden");
+  $("sexSelectedDisplay").classList.remove("hidden");
+  $("sexSelectedName").textContent = ex.name;
+}
+
+function _sexResetToStep1() {
+  pState.sexSelectedEx = null;
+  $("sexSelectedDisplay").classList.add("hidden");
+  $("sexSelectedName").textContent = "—";
+  $("sex-category").value = "";
+  $("sex-search").value = "";
+  $("sexSearchResults").innerHTML = "";
+  $("sexStep1").classList.remove("hidden");
+  $("sexStep2").classList.add("hidden");
+}
+
+async function openSessionExModal(sessionId, exData) {
   pState.sexSessionId = sessionId;
   pState.sexEditId    = exData ? exData.id : null;
   pState.sexSelectedEx = exData ? { id: exData.exercise_id, name: exData.exercise_name } : null;
@@ -1594,12 +1749,18 @@ function openSessionExModal(sessionId, exData) {
   $("sex-search").value = "";
   $("sexSearchResults").innerHTML = "";
 
+  await _populateSexCategories();
+
   if (pState.sexSelectedEx && pState.sexSelectedEx.name) {
+    $("sexStep1").classList.add("hidden");
+    $("sexStep2").classList.add("hidden");
     $("sexSelectedDisplay").classList.remove("hidden");
     $("sexSelectedName").textContent = pState.sexSelectedEx.name;
   } else {
     $("sexSelectedDisplay").classList.add("hidden");
     $("sexSelectedName").textContent = "—";
+    $("sexStep1").classList.remove("hidden");
+    $("sexStep2").classList.add("hidden");
   }
 
   // Fill defaults from goal or from existing exercise data
@@ -1657,21 +1818,52 @@ $("sex-pairing-toggle").addEventListener("change", e => {
   $("pairingOptions").classList.toggle("hidden", !e.target.checked);
 });
 
+$("sex-category").addEventListener("change", async e => {
+  const pattern = e.target.value;
+  $("sex-search").value = "";
+  if (!pattern) {
+    $("sexStep2").classList.add("hidden");
+    $("sexSearchResults").innerHTML = "";
+    return;
+  }
+  $("sexStep2").classList.remove("hidden");
+  const results = await apiFetch(`/api/exercises?movement_pattern=${encodeURIComponent(pattern)}`);
+  renderSexResults(results);
+  $("sex-search").focus();
+});
+
 $("sex-search").addEventListener("input", e => {
   clearTimeout(sexSearchTimer);
   const val = e.target.value.trim();
-  if (!val) { $("sexSearchResults").innerHTML = ""; return; }
+  const pattern = $("sex-category").value;
+  if (!val) {
+    if (pattern) {
+      sexSearchTimer = setTimeout(async () => {
+        const results = await apiFetch(`/api/exercises?movement_pattern=${encodeURIComponent(pattern)}`);
+        renderSexResults(results);
+      }, 150);
+    } else {
+      $("sexSearchResults").innerHTML = "";
+    }
+    return;
+  }
   sexSearchTimer = setTimeout(async () => {
-    const results = await apiFetch(`/api/exercises?search=${encodeURIComponent(val)}`);
-    renderSexResults(results.slice(0, 10));
+    const params = new URLSearchParams({ search: val });
+    if (pattern) params.set("movement_pattern", pattern);
+    const results = await apiFetch(`/api/exercises?${params}`);
+    renderSexResults(results);
   }, 250);
+});
+
+$("sexChangeBtn").addEventListener("click", () => {
+  _sexResetToStep1();
 });
 
 function renderSexResults(exercises) {
   const container = $("sexSearchResults");
   container.innerHTML = "";
   if (exercises.length === 0) {
-    container.innerHTML = `<div style="padding:10px 12px;font-size:.8rem;color:#9CA3AF">No exercises found</div>`;
+    container.innerHTML = `<div style="padding:10px 12px;font-size:.8rem;color:#9CA3AF">Egzersiz bulunamadı</div>`;
     return;
   }
   exercises.forEach(ex => {
@@ -1683,10 +1875,7 @@ function renderSexResults(exercises) {
     `;
     item.addEventListener("click", () => {
       pState.sexSelectedEx = { id: ex.id, name: ex.name };
-      $("sexSelectedDisplay").classList.remove("hidden");
-      $("sexSelectedName").textContent = ex.name;
-      $("sexSearchResults").innerHTML = "";
-      $("sex-search").value = "";
+      _sexShowSelectionPhase(ex);
     });
     container.appendChild(item);
   });
@@ -1728,9 +1917,9 @@ $("sessionExSave").addEventListener("click", async () => {
   } catch (err) { alert("Error: " + err.message); }
 });
 
-$("sessionExClose").addEventListener("click",  () => closeModal("sessionExModal"));
-$("sessionExCancel").addEventListener("click", () => closeModal("sessionExModal"));
-$("sessionExModal").addEventListener("click", e => { if (e.target === $("sessionExModal")) closeModal("sessionExModal"); });
+$("sessionExClose").addEventListener("click",  () => { _sexResetToStep1(); closeModal("sessionExModal"); });
+$("sessionExCancel").addEventListener("click", () => { _sexResetToStep1(); closeModal("sessionExModal"); });
+$("sessionExModal").addEventListener("click", e => { if (e.target === $("sessionExModal")) { _sexResetToStep1(); closeModal("sessionExModal"); } });
 
 /* ── Per-set table ────────────────────────────────────────────────────────── */
 let sexSetsData = []; // working copy while modal is open
@@ -2750,18 +2939,6 @@ const tState = {
   editingId:   null,
 };
 
-/* ── Helper functions ─────────────────────────────────────────────────────── */
-function resetChips(containerId) {
-  const chips = $(containerId).querySelectorAll(".chip");
-  chips.forEach((c, i) => c.classList.toggle("active", i === 0));
-}
-
-function setChip(containerId, value) {
-  $(containerId).querySelectorAll(".chip").forEach(c => {
-    c.classList.toggle("active", c.dataset.val === value);
-  });
-}
-
 /* ── Load & render teams ──────────────────────────────────────────────────── */
 async function loadTeams() {
   tState.teams = await apiFetch("/api/teams");
@@ -3686,3 +3863,451 @@ function renderCompareChart(readyAthletes, selectedExercises) {
     },
   });
 }
+
+/* =============================================================================
+   LOAD MONITORING
+============================================================================= */
+
+const lmState = {
+  athleteId: null, dashboardData: null, wellnessId: null,
+  wellnessValues: { sleep_quality:null, fatigue:null, muscle_soreness:null, stress_mood:null },
+  editingLogId: null, acwrChart: null, weeklyChart: null, hooperChart: null,
+  selectedSessionType: "strength", selectedRpe: null,
+};
+
+const ZONE_LABELS = {
+  optimal:"Optimal Bolge", caution:"Dikkat", high_risk:"Yuksek Risk",
+  critical:"Kritik", undertraining:"Yetersiz Yuklenme", insufficient_data:"Veri Biriktirilyor",
+};
+const ZONE_ADVICE = {
+  optimal:           "Antrenman yukunuz dengeli. Devam edin.",
+  caution:           "Yuk artisi izleniyor. Bu haftaki yogunluga dikkat edin.",
+  high_risk:         "Yuk yuksek. Yogun antrenman yapmaktan kaginin.",
+  critical:          "Asiri yuklenme. Mutlaka dinlenin ve antrenorunuzle gorusun.",
+  undertraining:     "Yuk dusuk. Antrenman yogunlugunu kademeli artirabilirsiniz.",
+  insufficient_data: "ACWR hesaplamak icin daha fazla veri biriktirilmektedir.",
+};
+
+async function initLoadMonitoring() {
+  const isCoachOrStaff = ["coach","staff"].includes(state.currentUser?.role);
+  if (isCoachOrStaff) {
+    $("lmCoachSelector").classList.remove("hidden");
+    $("lmDashboard").classList.add("hidden");
+    await populateLMAthleteSelect();
+  } else {
+    $("lmCoachSelector").classList.add("hidden");
+    const athleteId = state.currentUser?.athlete_id;
+    if (!athleteId) { showToast("Sporcu profili bulunamadi.", "error"); return; }
+    lmState.athleteId = athleteId;
+    await loadDashboard(athleteId);
+  }
+}
+
+async function populateLMAthleteSelect() {
+  try {
+    const athletes = await apiFetch("/api/athletes");
+    const sel = $("lmAthleteSelect");
+    sel.innerHTML = '<option value="">- Sporcu secin -</option>';
+    athletes.forEach(a => {
+      const opt = document.createElement("option");
+      opt.value = a.id;
+      opt.textContent = a.name + (a.sport ? " (" + a.sport + ")" : "");
+      sel.appendChild(opt);
+    });
+  } catch(e) { showToast("Sporcular yuklenemedi.", "error"); }
+}
+
+$("lmAthleteSelect").addEventListener("change", async e => {
+  const id = parseInt(e.target.value);
+  if (!id) { $("lmDashboard").classList.add("hidden"); return; }
+  lmState.athleteId = id;
+  await loadDashboard(id);
+});
+
+$("lmRefreshBtn").addEventListener("click", () => { if (lmState.athleteId) loadDashboard(lmState.athleteId); });
+
+async function loadDashboard(athleteId) {
+  try {
+    const data = await apiFetch("/api/dashboard/" + athleteId);
+    lmState.dashboardData = data;
+    renderDashboard(data);
+    $("lmDashboard").classList.remove("hidden");
+  } catch(e) { showToast("Dashboard yuklenemedi: " + e.message, "error"); }
+}
+
+function renderDashboard(data) {
+  const today = new Date().toLocaleDateString("tr-TR", { weekday:"long", year:"numeric", month:"long", day:"numeric" });
+  $("lmAthleteName").textContent = data.athlete.name;
+  $("lmDateLabel").textContent   = today;
+
+  // Avatar baş harfi
+  const av = $("lmDashAvatar");
+  if (av) av.textContent = (data.athlete.name || "?")[0].toUpperCase();
+
+  renderKpiRow(data);
+  renderWellnessCard(data.today.wellness);
+  renderACWRCard(data.acwr);
+  renderTodaySessions(data.today);
+  renderACWRChart(data.acwr.timeline);
+  renderWeeklyChart(data.weekly_summary);
+  renderHooperChart(data.hooper_trend);
+  renderMonthlyStats(data.monthly_summary, data.acwr);
+}
+
+function renderKpiRow(data) {
+  const acwr   = data.acwr;
+  const today  = data.today;
+  const zone   = acwr.zone;
+  const val    = acwr.current;
+  const zoneCls = { optimal:"#22C55E", caution:"#EAB308", high_risk:"#F97316", critical:"#EF4444", undertraining:"#3B82F6", insufficient_data:"#9CA3AF" };
+
+  // ACWR
+  const kpiACWR = $("lmKpiACWR");
+  if (kpiACWR) {
+    kpiACWR.textContent = val != null ? val.toFixed(2) : "—";
+    kpiACWR.style.color = zoneCls[zone] || "#1A1D23";
+  }
+  const dot = $("lmKpiACWRDot");
+  if (dot) { dot.style.background = zoneCls[zone] || "#9CA3AF"; }
+
+  const kpiAcute = $("lmKpiAcute");
+  if (kpiAcute) kpiAcute.textContent = acwr.acute_7d != null ? acwr.acute_7d.toFixed(1) + " AU" : "—";
+
+  const kpiChronic = $("lmKpiChronic");
+  if (kpiChronic) kpiChronic.textContent = acwr.chronic_28d != null ? acwr.chronic_28d.toFixed(1) + " AU" : "—";
+
+  const kpiToday = $("lmKpiToday");
+  if (kpiToday) kpiToday.textContent = today.total_load_today != null ? today.total_load_today.toFixed(1) + " AU" : "—";
+
+  const kpiHooper = $("lmKpiHooper");
+  if (kpiHooper && today.wellness) {
+    kpiHooper.textContent = today.wellness.hooper_index + " / 20";
+  } else if (kpiHooper) {
+    kpiHooper.textContent = "—";
+  }
+}
+
+function renderWellnessCard(wellness) {
+  if (!wellness) {
+    $("lmWellnessForm").classList.remove("hidden");
+    $("lmWellnessDone").classList.add("hidden");
+    $("lmWellnessBadge").textContent   = "Girilmedi";
+    $("lmWellnessBadge").style.cssText = "background:#FEF2F2;color:#991B1B";
+    lmState.wellnessId = null;
+    resetWellnessForm();
+  } else {
+    $("lmWellnessForm").classList.add("hidden");
+    $("lmWellnessDone").classList.remove("hidden");
+    lmState.wellnessId = wellness.id;
+    const zones = { excellent:{bg:"#F0FDF4",color:"#15803D",label:"Mukemmel"}, normal:{bg:"#F9FAFB",color:"#374151",label:"Normal"}, caution:{bg:"#FEFCE8",color:"#92400E",label:"Dikkat"}, critical:{bg:"#FEF2F2",color:"#991B1B",label:"Kritik"} };
+    const zc = zones[wellness.hooper_zone] || zones.normal;
+    $("lmWellnessBadge").textContent   = "Tamamlandi";
+    $("lmWellnessBadge").style.cssText = "background:#F0FDF4;color:#15803D";
+    $("lmHooperDisplay").innerHTML = '<span class="lm-hooper-num" style="color:' + zc.color + '">' + wellness.hooper_index + '</span><span class="lm-hooper-label">/ 20 Hooper Index</span><span class="lm-hooper-zone-tag" style="background:' + zc.bg + ';color:' + zc.color + '">' + zc.label + '</span>';
+    $("lmWellnessSummary").innerHTML = [
+      {val:wellness.sleep_quality,lbl:"Uyku"},{val:wellness.fatigue,lbl:"Yorgunluk"},
+      {val:wellness.muscle_soreness,lbl:"Kas Agrisi"},{val:wellness.stress_mood,lbl:"Stres"},
+    ].map(function(m){ return '<div class="lm-wellness-summary-item"><div class="wsm-val">' + m.val + '</div><div class="wsm-lbl">' + m.lbl + '</div></div>'; }).join("");
+    $("lmWellnessDoneNotes").textContent = wellness.notes ? ('"' + wellness.notes + '"') : "";
+  }
+}
+
+function resetWellnessForm() {
+  lmState.wellnessValues = { sleep_quality:null, fatigue:null, muscle_soreness:null, stress_mood:null };
+  document.querySelectorAll(".lm-rating-btn").forEach(function(b){ b.classList.remove("selected"); });
+  $("lmWellnessNotes").value = "";
+  $("lmHooperScore").textContent = "-";
+  $("lmSaveWellnessBtn").disabled = true;
+}
+
+document.querySelectorAll(".lm-rating-btns").forEach(function(group) {
+  group.addEventListener("click", function(e) {
+    const btn = e.target.closest(".lm-rating-btn");
+    if (!btn) return;
+    const field = group.dataset.field;
+    group.querySelectorAll(".lm-rating-btn").forEach(function(b){ b.classList.remove("selected"); });
+    btn.classList.add("selected");
+    lmState.wellnessValues[field] = parseInt(btn.dataset.val);
+    updateHooperPreview();
+  });
+});
+
+function updateHooperPreview() {
+  const v = lmState.wellnessValues;
+  if (v.sleep_quality && v.fatigue && v.muscle_soreness && v.stress_mood) {
+    $("lmHooperScore").textContent  = (v.sleep_quality + v.fatigue + v.muscle_soreness + v.stress_mood) + " / 20";
+    $("lmSaveWellnessBtn").disabled = false;
+  } else {
+    $("lmHooperScore").textContent  = "-";
+    $("lmSaveWellnessBtn").disabled = true;
+  }
+}
+
+$("lmSaveWellnessBtn").addEventListener("click", async function() {
+  const v = lmState.wellnessValues;
+  try {
+    await apiFetch("/api/wellness", { method:"POST", body: JSON.stringify({
+      athlete_id: lmState.athleteId, date: new Date().toISOString().slice(0,10),
+      sleep_quality:v.sleep_quality, fatigue:v.fatigue,
+      muscle_soreness:v.muscle_soreness, stress_mood:v.stress_mood,
+      notes: $("lmWellnessNotes").value.trim() || null,
+    })});
+    showToast("Sabah check-in kaydedildi!", "success");
+    loadDashboard(lmState.athleteId);
+  } catch(e) { showToast(e.message, "error"); }
+});
+
+$("lmEditWellnessBtn").addEventListener("click", function() {
+  const wd = lmState.dashboardData && lmState.dashboardData.today && lmState.dashboardData.today.wellness;
+  if (!wd) return;
+  $("lmWellnessDone").classList.add("hidden");
+  $("lmWellnessForm").classList.remove("hidden");
+  ["sleep_quality","fatigue","muscle_soreness","stress_mood"].forEach(function(field) {
+    const val = wd[field];
+    lmState.wellnessValues[field] = val;
+    const group = document.querySelector('.lm-rating-btns[data-field="' + field + '"]');
+    if (!group) return;
+    group.querySelectorAll(".lm-rating-btn").forEach(function(b){ b.classList.remove("selected"); });
+    const t = group.querySelector('.lm-rating-btn[data-val="' + val + '"]');
+    if (t) t.classList.add("selected");
+  });
+  $("lmWellnessNotes").value = wd.notes || "";
+  updateHooperPreview();
+  $("lmSaveWellnessBtn").onclick = async function() {
+    const v = lmState.wellnessValues;
+    try {
+      await apiFetch("/api/wellness/" + lmState.wellnessId, { method:"PUT", body: JSON.stringify({
+        sleep_quality:v.sleep_quality, fatigue:v.fatigue,
+        muscle_soreness:v.muscle_soreness, stress_mood:v.stress_mood,
+        notes: $("lmWellnessNotes").value.trim() || null,
+      })});
+      showToast("Check-in guncellendi!", "success");
+      $("lmSaveWellnessBtn").onclick = null;
+      loadDashboard(lmState.athleteId);
+    } catch(e) { showToast(e.message, "error"); }
+  };
+});
+
+function renderACWRCard(acwr) {
+  const val = acwr.current; const zone = acwr.zone;
+  $("lmACWRBig").textContent       = val != null ? val.toFixed(2) : "-";
+  $("lmACWRBig").className         = "lm-acwr-big zone-" + zone;
+  $("lmACWRZoneLabel").textContent  = ZONE_LABELS[zone] || zone;
+  $("lmACWRZoneLabel").className    = "lm-acwr-zone-label zone-bg-" + zone + " zone-" + zone;
+  $("lmACWRBadge").textContent      = ZONE_LABELS[zone] || zone;
+  $("lmAcuteVal").textContent       = acwr.acute_7d   != null ? Math.round(acwr.acute_7d)    : "-";
+  $("lmChronicVal").textContent     = acwr.chronic_28d != null ? Math.round(acwr.chronic_28d) : "-";
+  $("lmDataDaysVal").textContent    = acwr.data_days + " gun";
+  $("lmACWRPartial").classList.toggle("hidden", !acwr.is_partial);
+  $("lmACWRAdvice").textContent     = ZONE_ADVICE[zone] || "";
+  $("lmACWRAdvice").className       = "lm-acwr-advice zone-bg-" + zone + " zone-" + zone;
+  if (val != null) {
+    $("lmZoneIndicator").style.display = "block";
+    $("lmZoneIndicator").style.left    = (Math.min(Math.max(val / 2.5, 0), 1) * 100) + "%";
+  } else { $("lmZoneIndicator").style.display = "none"; }
+}
+
+function renderTodaySessions(todayData) {
+  const sessions = todayData.training_sessions || [];
+  const container = $("lmTodaySessions");
+  $("lmSessionsEmpty").classList.toggle("hidden", sessions.length > 0);
+  $("lmDailyLoadBadge").style.display = sessions.length ? "flex" : "none";
+  $("lmDailyLoadVal").textContent = Math.round(todayData.total_load_today || 0);
+  container.querySelectorAll(".lm-session-row").forEach(function(el){ el.remove(); });
+  const TC = { strength:"#4A7CF6", conditioning:"#22C55E", technical:"#EAB308", competition:"#EF4444", recovery:"#A78BFA" };
+  const TL = { strength:"Guc", conditioning:"Kondisyon", technical:"Teknik", competition:"Yarisma", recovery:"Toparlanma" };
+  sessions.forEach(function(s) {
+    const row = document.createElement("div");
+    row.className = "lm-session-row";
+    row.innerHTML = '<div class="lm-session-type-dot" style="background:' + (TC[s.session_type]||"#9CA3AF") + '"></div>' +
+      '<div class="lm-session-name">' + (s.session_name || TL[s.session_type] || "Antrenman") + '</div>' +
+      '<div class="lm-session-meta">' + s.duration_minutes + ' dk RPE ' + s.rpe + '</div>' +
+      '<div class="lm-session-load">' + Math.round(s.session_load) + ' AU</div>' +
+      '<button class="lm-session-del" data-id="' + s.id + '" title="Sil"><i class="fa-solid fa-trash"></i></button>';
+    row.querySelector(".lm-session-del").addEventListener("click", async function(e) {
+      if (!confirm("Bu antrenman kaydini silmek istiyor musunuz?")) return;
+      try { await apiFetch("/api/training-log/" + e.currentTarget.dataset.id, { method:"DELETE" }); showToast("Kayit silindi.", "success"); loadDashboard(lmState.athleteId); }
+      catch(err) { showToast(err.message, "error"); }
+    });
+    container.appendChild(row);
+  });
+}
+
+$("lmAddSessionBtn").addEventListener("click", function(){ openTrainingLogModal(); });
+
+function openTrainingLogModal(logData) {
+  lmState.editingLogId = (logData && logData.id) || null;
+  $("lmTrainingModalTitle").textContent = logData ? "Seans Duzenle" : "Antrenman Seasi Kaydet";
+  $("lmLogSessionName").value = (logData && logData.session_name) || "";
+  $("lmLogDate").value        = (logData && logData.log_date) || new Date().toISOString().slice(0,10);
+  $("lmLogDuration").value    = (logData && logData.duration_minutes) || "";
+  $("lmLogNotes").value       = (logData && logData.notes) || "";
+  lmState.selectedRpe = (logData && logData.rpe) || null;
+  document.querySelectorAll(".lm-rpe-btn").forEach(function(b){ b.classList.toggle("selected", parseInt(b.dataset.val) === lmState.selectedRpe); });
+  updateRpeDisplay();
+  lmState.selectedSessionType = (logData && logData.session_type) || "strength";
+  document.querySelectorAll("#lmSessionTypeChips .chip").forEach(function(c){ c.classList.toggle("active", c.dataset.val === lmState.selectedSessionType); });
+  updateLoadPreview();
+  $("lmTrainingModal").classList.remove("hidden");
+}
+
+function closeTrainingLogModal() { $("lmTrainingModal").classList.add("hidden"); lmState.selectedRpe = null; }
+$("lmTrainingModalClose").addEventListener("click",  closeTrainingLogModal);
+$("lmTrainingModalCancel").addEventListener("click", closeTrainingLogModal);
+
+document.querySelectorAll(".lm-rpe-btn").forEach(function(btn) {
+  btn.addEventListener("click", function() {
+    lmState.selectedRpe = parseInt(btn.dataset.val);
+    document.querySelectorAll(".lm-rpe-btn").forEach(function(b){ b.classList.remove("selected"); });
+    btn.classList.add("selected");
+    updateRpeDisplay(); updateLoadPreview();
+  });
+});
+
+const RPE_LABELS = {1:"Cok Kolay",2:"Kolay",3:"Orta",4:"Biraz Zor",5:"Zor",6:"Zor+",7:"Cok Zor",8:"Agir",9:"Maks. Yakin",10:"Maksimal"};
+function updateRpeDisplay() {
+  $("lmRpeDisplay").textContent = lmState.selectedRpe ? ("RPE " + lmState.selectedRpe + " - " + RPE_LABELS[lmState.selectedRpe]) : "secilmedi";
+}
+
+$("lmSessionTypeChips").addEventListener("click", function(e) {
+  const chip = e.target.closest(".chip"); if (!chip) return;
+  $("lmSessionTypeChips").querySelectorAll(".chip").forEach(function(c){ c.classList.remove("active"); });
+  chip.classList.add("active"); lmState.selectedSessionType = chip.dataset.val;
+});
+
+$("lmLogDuration").addEventListener("input", updateLoadPreview);
+function updateLoadPreview() {
+  const dur = parseInt($("lmLogDuration").value) || null;
+  $("lmLoadVal").textContent = (lmState.selectedRpe && dur) ? Math.round(lmState.selectedRpe * dur) : "-";
+}
+
+$("lmSaveTrainingBtn").addEventListener("click", async function() {
+  const dur = parseInt($("lmLogDuration").value);
+  if (!dur || dur < 1) { showToast("Lutfen gecerli bir sure girin.", "error"); return; }
+  if (!lmState.selectedRpe) { showToast("Lutfen RPE degeri secin.", "error"); return; }
+  const payload = {
+    athlete_id: lmState.athleteId,
+    session_name: $("lmLogSessionName").value.trim() || null,
+    log_date:     $("lmLogDate").value,
+    duration_minutes: dur, rpe: lmState.selectedRpe,
+    session_type: lmState.selectedSessionType,
+    notes: $("lmLogNotes").value.trim() || null,
+  };
+  try {
+    if (lmState.editingLogId) {
+      await apiFetch("/api/training-log/" + lmState.editingLogId, { method:"PUT", body:JSON.stringify(payload) });
+      showToast("Seans guncellendi!", "success");
+    } else {
+      await apiFetch("/api/training-log", { method:"POST", body:JSON.stringify(payload) });
+      showToast("Seans kaydedildi!", "success");
+    }
+    closeTrainingLogModal(); loadDashboard(lmState.athleteId);
+  } catch(e) { showToast(e.message, "error"); }
+});
+
+function renderACWRChart(timeline) {
+  if (lmState.acwrChart) { lmState.acwrChart.destroy(); lmState.acwrChart = null; }
+  if (!timeline || timeline.length === 0) return;
+  const n = timeline.length;
+  lmState.acwrChart = new Chart($("lmACWRChart"), {
+    type:"line",
+    data:{
+      labels: timeline.map(function(d){ return d.date; }),
+      datasets:[
+        { label:"_u", data:Array(n).fill(0.8),  fill:{target:"origin",above:"rgba(59,130,246,0.07)"},  borderWidth:0, pointRadius:0, tension:0 },
+        { label:"_o", data:Array(n).fill(1.3),  fill:{target:"-1",    above:"rgba(34,197,94,0.07)"},   borderWidth:0, pointRadius:0, tension:0 },
+        { label:"_c", data:Array(n).fill(1.5),  fill:{target:"-1",    above:"rgba(234,179,8,0.09)"},   borderWidth:0, pointRadius:0, tension:0 },
+        { label:"_h", data:Array(n).fill(2.0),  fill:{target:"-1",    above:"rgba(249,115,22,0.09)"},  borderWidth:0, pointRadius:0, tension:0 },
+        { label:"_r", data:Array(n).fill(2.5),  fill:{target:"-1",    above:"rgba(239,68,68,0.09)"},   borderWidth:0, pointRadius:0, tension:0 },
+        { label:"ACWR", data:timeline.map(function(d){ return d.acwr; }), borderColor:"#4A7CF6", backgroundColor:"rgba(74,124,246,0.1)", borderWidth:2.5, pointRadius:0, pointHoverRadius:5, tension:0.3, fill:false, spanGaps:true },
+      ],
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      interaction:{mode:"index",intersect:false},
+      plugins:{ legend:{display:false}, tooltip:{ filter:function(i){ return i.dataset.label==="ACWR"; }, callbacks:{ label:function(ctx){ return "ACWR: " + (ctx.parsed.y!=null?ctx.parsed.y.toFixed(2):"-"); } } } },
+      scales:{
+        x:{ticks:{maxTicksLimit:8,font:{size:11},color:"#9CA3AF"},grid:{color:"#F1F5F9"}},
+        y:{min:0,max:2.5,ticks:{stepSize:0.5,font:{size:11},color:"#9CA3AF"},grid:{color:"#F1F5F9"}},
+      },
+    },
+  });
+}
+
+function renderWeeklyChart(weekly) {
+  if (lmState.weeklyChart) { lmState.weeklyChart.destroy(); lmState.weeklyChart = null; }
+  $("lmWeeklyTotal").textContent = "Toplam: " + Math.round(weekly.total_load) + " AU";
+  const bd = weekly.daily_breakdown || [];
+  lmState.weeklyChart = new Chart($("lmWeeklyChart"), {
+    type:"bar",
+    data:{
+      labels: bd.map(function(d){ const dt=new Date(d.date+"T00:00:00"); return dt.toLocaleDateString("tr-TR",{weekday:"short",day:"numeric"}); }),
+      datasets:[{ label:"Gunluk Yuk (AU)", data:bd.map(function(d){ return d.load; }), backgroundColor:bd.map(function(d){ return d.load>0?"rgba(74,124,246,0.7)":"rgba(74,124,246,0.15)"; }), borderRadius:6, borderSkipped:false }],
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{callbacks:{label:function(ctx){ return Math.round(ctx.parsed.y) + " AU"; }}} },
+      scales:{ x:{ticks:{font:{size:10},color:"#9CA3AF"},grid:{display:false}}, y:{beginAtZero:true,ticks:{font:{size:10},color:"#9CA3AF"},grid:{color:"#F1F5F9"}} },
+    },
+  });
+}
+
+function renderHooperChart(trend) {
+  if (lmState.hooperChart) { lmState.hooperChart.destroy(); lmState.hooperChart = null; }
+  if (!trend || trend.length === 0) return;
+  const ZC = { excellent:"#22C55E", normal:"#4A7CF6", caution:"#EAB308", critical:"#EF4444" };
+  lmState.hooperChart = new Chart($("lmHooperChart"), {
+    type:"line",
+    data:{
+      labels: trend.map(function(d){ const dt=new Date(d.date+"T00:00:00"); return dt.toLocaleDateString("tr-TR",{day:"numeric",month:"short"}); }),
+      datasets:[{ label:"Hooper Index", data:trend.map(function(d){ return d.hooper_index; }), borderColor:"#4A7CF6", backgroundColor:"rgba(74,124,246,0.08)", borderWidth:2, pointRadius:4, pointBackgroundColor:trend.map(function(d){ return ZC[d.hooper_zone]||"#4A7CF6"; }), tension:0.3, fill:true }],
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{callbacks:{label:function(ctx){ return "Hooper: " + ctx.parsed.y + " / 20"; }}} },
+      scales:{ x:{ticks:{maxTicksLimit:8,font:{size:10},color:"#9CA3AF"},grid:{display:false}}, y:{min:4,max:20,ticks:{stepSize:4,font:{size:10},color:"#9CA3AF"},grid:{color:"#F1F5F9"}} },
+    },
+  });
+}
+
+function renderMonthlyStats(monthly, acwr) {
+  const avg = monthly.session_count > 0 ? Math.round(monthly.total_load / monthly.session_count) : "-";
+  $("lmMonthlyStats").innerHTML =
+    '<div class="lm-monthly-stat"><div class="lm-monthly-stat-val">' + Math.round(monthly.total_load) + '</div><div class="lm-monthly-stat-lbl">Aylik Toplam Yuk (AU)</div></div>' +
+    '<div class="lm-monthly-stat"><div class="lm-monthly-stat-val">' + monthly.session_count + '</div><div class="lm-monthly-stat-lbl">Antrenman Seansi</div></div>' +
+    '<div class="lm-monthly-stat"><div class="lm-monthly-stat-val">' + avg + '</div><div class="lm-monthly-stat-lbl">Ort. Seans Yuku (AU)</div></div>' +
+    '<div class="lm-monthly-stat"><div class="lm-monthly-stat-val">' + acwr.data_days + '</div><div class="lm-monthly-stat-lbl">Toplam Veri Gunu</div></div>';
+}
+
+/* ── Toast notification ───────────────────────────────────────────────────── */
+function showToast(message, type) {
+  type = type || "info";
+  let container = document.getElementById("toastContainer");
+  if (!container) {
+    container = document.createElement("div");
+    container.id = "toastContainer";
+    container.style.cssText = "position:fixed;bottom:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:10px;pointer-events:none";
+    document.body.appendChild(container);
+  }
+  const toast = document.createElement("div");
+  const colors = { success: "#22C55E", error: "#EF4444", info: "#4A7CF6", warning: "#F97316" };
+  const icons  = { success: "fa-check-circle", error: "fa-circle-xmark", info: "fa-circle-info", warning: "fa-triangle-exclamation" };
+  toast.style.cssText = "display:flex;align-items:center;gap:10px;padding:12px 18px;border-radius:12px;background:#1E293B;color:#F8FAFC;font-size:0.88rem;box-shadow:0 8px 24px rgba(0,0,0,0.25);pointer-events:auto;max-width:340px;animation:toastIn .25s ease";
+  toast.innerHTML = '<i class="fa-solid ' + (icons[type] || icons.info) + '" style="color:' + (colors[type] || colors.info) + ';font-size:1rem;flex-shrink:0"></i><span>' + message + '</span>';
+  container.appendChild(toast);
+  setTimeout(function() {
+    toast.style.opacity = "0";
+    toast.style.transform = "translateY(8px)";
+    toast.style.transition = "opacity .3s,transform .3s";
+    setTimeout(function() { toast.remove(); }, 320);
+  }, 3000);
+}
+
+/* inject toast animation */
+(function() {
+  if (document.getElementById("toastKeyframes")) return;
+  const s = document.createElement("style");
+  s.id = "toastKeyframes";
+  s.textContent = "@keyframes toastIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}";
+  document.head.appendChild(s);
+})();

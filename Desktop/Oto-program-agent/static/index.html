@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
-  <link rel="stylesheet" href="/static/style.css?v=3" />
+  <link rel="stylesheet" href="/static/style.css?v=4" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
@@ -165,6 +165,7 @@
       <button class="view-tab coach-only" id="tabAthletes"><i class="fa-solid fa-person-running"></i> Athletes</button>
       <button class="view-tab coach-only" id="tabTeams"><i class="fa-solid fa-people-group"></i> Teams</button>
       <button class="view-tab coach-only" id="tabStats"><i class="fa-solid fa-chart-bar"></i> Statistics</button>
+      <button class="view-tab" id="tabLoadMonitoring"><i class="fa-solid fa-heart-pulse"></i> Yük Takip</button>
     </div>
     <div class="search-box" id="librarySearchBox">
       <i class="fa-solid fa-magnifying-glass"></i>
@@ -177,6 +178,10 @@
       <button class="btn-primary" id="addExerciseBtn">
         <i class="fa-solid fa-plus"></i><span class="btn-text"> Add Exercise</span>
       </button>
+      <button class="btn-secondary hidden" id="importExcelBtn">
+        <i class="fa-solid fa-file-excel"></i><span class="btn-text"> Excel'den İçe Aktar</span>
+      </button>
+      <input type="file" id="importExcelInput" accept=".xlsx,.xls" style="display:none" />
       <button class="btn-primary hidden" id="newProgramBtn">
         <i class="fa-solid fa-plus"></i><span class="btn-text"> New Program</span>
       </button>
@@ -194,6 +199,301 @@
       </button>
     </div>
   </header>
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       LOAD MONITORING VIEW
+  ══════════════════════════════════════════════════════════════════ -->
+  <div id="loadMonitoringView" class="lm-view hidden">
+
+    <!-- Coach: sporcu seçici banner -->
+    <div id="lmCoachSelector" class="lm-coach-selector hidden">
+      <div class="lm-coach-selector-inner">
+        <div class="lm-selector-icon-wrap">
+          <i class="fa-solid fa-person-running"></i>
+        </div>
+        <div>
+          <div class="lm-selector-label">Yük Takip Paneli</div>
+          <div class="lm-selector-sub">Dashboard'u görüntülemek için bir sporcu seçin</div>
+        </div>
+        <select id="lmAthleteSelect" class="lm-athlete-select">
+          <option value="">— Sporcu seçin —</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Dashboard içeriği -->
+    <div id="lmDashboard" class="lm-dashboard hidden">
+
+      <!-- Başlık satırı -->
+      <div class="lm-dash-header">
+        <div class="lm-dash-identity">
+          <div class="lm-dash-avatar" id="lmDashAvatar"></div>
+          <div>
+            <div class="lm-dash-name" id="lmAthleteName"></div>
+            <div class="lm-dash-date" id="lmDateLabel"></div>
+          </div>
+        </div>
+        <button class="lm-refresh-btn" id="lmRefreshBtn" title="Yenile">
+          <i class="fa-solid fa-rotate-right"></i> Yenile
+        </button>
+      </div>
+
+      <!-- SATIR 1: KPI kartları -->
+      <div class="lm-kpi-row" id="lmKpiRow">
+        <div class="lm-kpi-card lm-kpi-acwr">
+          <div class="lm-kpi-icon"><i class="fa-solid fa-gauge-high"></i></div>
+          <div class="lm-kpi-body">
+            <div class="lm-kpi-val" id="lmKpiACWR">—</div>
+            <div class="lm-kpi-lbl">ACWR</div>
+          </div>
+          <div class="lm-kpi-zone-dot" id="lmKpiACWRDot"></div>
+        </div>
+        <div class="lm-kpi-card lm-kpi-acute">
+          <div class="lm-kpi-icon"><i class="fa-solid fa-bolt"></i></div>
+          <div class="lm-kpi-body">
+            <div class="lm-kpi-val" id="lmKpiAcute">—</div>
+            <div class="lm-kpi-lbl">Akut Yük (7g)</div>
+          </div>
+        </div>
+        <div class="lm-kpi-card lm-kpi-chronic">
+          <div class="lm-kpi-icon"><i class="fa-solid fa-calendar-week"></i></div>
+          <div class="lm-kpi-body">
+            <div class="lm-kpi-val" id="lmKpiChronic">—</div>
+            <div class="lm-kpi-lbl">Kronik Yük (28g)</div>
+          </div>
+        </div>
+        <div class="lm-kpi-card lm-kpi-today">
+          <div class="lm-kpi-icon"><i class="fa-solid fa-fire-flame-curved"></i></div>
+          <div class="lm-kpi-body">
+            <div class="lm-kpi-val" id="lmKpiToday">—</div>
+            <div class="lm-kpi-lbl">Bugünkü Yük</div>
+          </div>
+        </div>
+        <div class="lm-kpi-card lm-kpi-hooper">
+          <div class="lm-kpi-icon"><i class="fa-solid fa-heart-pulse"></i></div>
+          <div class="lm-kpi-body">
+            <div class="lm-kpi-val" id="lmKpiHooper">—</div>
+            <div class="lm-kpi-lbl">Hooper Index</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SATIR 2: Ana içerik grid -->
+      <div class="lm-main-grid">
+
+        <!-- Sol kolon: Wellness + Seans -->
+        <div class="lm-col-left">
+
+          <!-- Wellness Check-in Kartı -->
+          <div class="lm-card lm-wellness-card" id="lmWellnessCard">
+            <div class="lm-card-head">
+              <span class="lm-card-title"><i class="fa-solid fa-moon"></i> Sabah Check-in</span>
+              <span class="lm-card-badge" id="lmWellnessBadge"></span>
+            </div>
+
+            <!-- Form -->
+            <div id="lmWellnessForm">
+              <div class="lm-wellness-grid">
+
+                <div class="lm-wellness-row">
+                  <div class="lm-wellness-label">
+                    <i class="fa-solid fa-bed"></i> Uyku Kalitesi
+                  </div>
+                  <div class="lm-rating-btns" data-field="sleep_quality">
+                    <button class="lm-rating-btn" data-val="1">1<span>Mükemmel</span></button>
+                    <button class="lm-rating-btn" data-val="2">2<span>İyi</span></button>
+                    <button class="lm-rating-btn" data-val="3">3<span>Orta</span></button>
+                    <button class="lm-rating-btn" data-val="4">4<span>Kötü</span></button>
+                    <button class="lm-rating-btn" data-val="5">5<span>Çok Kötü</span></button>
+                  </div>
+                </div>
+
+                <div class="lm-wellness-row">
+                  <div class="lm-wellness-label">
+                    <i class="fa-solid fa-battery-half"></i> Yorgunluk
+                  </div>
+                  <div class="lm-rating-btns" data-field="fatigue">
+                    <button class="lm-rating-btn" data-val="1">1<span>Hiç Yok</span></button>
+                    <button class="lm-rating-btn" data-val="2">2<span>Az</span></button>
+                    <button class="lm-rating-btn" data-val="3">3<span>Orta</span></button>
+                    <button class="lm-rating-btn" data-val="4">4<span>Fazla</span></button>
+                    <button class="lm-rating-btn" data-val="5">5<span>Çok Fazla</span></button>
+                  </div>
+                </div>
+
+                <div class="lm-wellness-row">
+                  <div class="lm-wellness-label">
+                    <i class="fa-solid fa-person-cane"></i> Kas Ağrısı
+                  </div>
+                  <div class="lm-rating-btns" data-field="muscle_soreness">
+                    <button class="lm-rating-btn" data-val="1">1<span>Yok</span></button>
+                    <button class="lm-rating-btn" data-val="2">2<span>Hafif</span></button>
+                    <button class="lm-rating-btn" data-val="3">3<span>Orta</span></button>
+                    <button class="lm-rating-btn" data-val="4">4<span>Şiddetli</span></button>
+                    <button class="lm-rating-btn" data-val="5">5<span>Çok Şiddetli</span></button>
+                  </div>
+                </div>
+
+                <div class="lm-wellness-row">
+                  <div class="lm-wellness-label">
+                    <i class="fa-solid fa-brain"></i> Stres / Ruh Hali
+                  </div>
+                  <div class="lm-rating-btns" data-field="stress_mood">
+                    <button class="lm-rating-btn" data-val="1">1<span>Harika</span></button>
+                    <button class="lm-rating-btn" data-val="2">2<span>İyi</span></button>
+                    <button class="lm-rating-btn" data-val="3">3<span>Normal</span></button>
+                    <button class="lm-rating-btn" data-val="4">4<span>Gergin</span></button>
+                    <button class="lm-rating-btn" data-val="5">5<span>Çok Stresli</span></button>
+                  </div>
+                </div>
+
+              </div>
+
+              <div class="lm-wellness-notes-row">
+                <textarea id="lmWellnessNotes" placeholder="Notlar (opsiyonel)…" rows="2"></textarea>
+              </div>
+
+              <div class="lm-wellness-actions">
+                <div class="lm-hooper-preview" id="lmHooperPreview">
+                  Hooper Index: <strong id="lmHooperScore">—</strong>
+                </div>
+                <button class="btn-primary" id="lmSaveWellnessBtn" disabled>
+                  <i class="fa-solid fa-check"></i> Kaydet
+                </button>
+              </div>
+            </div>
+
+            <!-- Tamamlandı özeti -->
+            <div id="lmWellnessDone" class="lm-wellness-done hidden">
+              <div class="lm-hooper-display" id="lmHooperDisplay"></div>
+              <div class="lm-wellness-summary" id="lmWellnessSummary"></div>
+              <div class="lm-wellness-done-notes" id="lmWellnessDoneNotes"></div>
+              <button class="btn-ghost btn-sm" id="lmEditWellnessBtn">
+                <i class="fa-solid fa-pen"></i> Düzenle
+              </button>
+            </div>
+          </div>
+
+          <!-- Bugünkü Antrenmanlar -->
+          <div class="lm-card lm-sessions-card">
+            <div class="lm-card-head">
+              <span class="lm-card-title"><i class="fa-solid fa-stopwatch"></i> Bugünkü Antrenmanlar</span>
+              <div class="lm-sessions-head-right">
+                <div class="lm-daily-load-badge" id="lmDailyLoadBadge" style="display:none">
+                  Günlük Yük: <strong id="lmDailyLoadVal">0</strong> AU
+                </div>
+                <button class="btn-primary btn-sm" id="lmAddSessionBtn">
+                  <i class="fa-solid fa-plus"></i> Seans Ekle
+                </button>
+              </div>
+            </div>
+            <div id="lmTodaySessions" class="lm-today-sessions">
+              <div class="lm-sessions-empty" id="lmSessionsEmpty">
+                <i class="fa-solid fa-dumbbell"></i>
+                <span>Bugün için henüz antrenman kaydı yok.</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Sağ kolon: ACWR Gauge + Trend -->
+        <div class="lm-col-right">
+
+          <!-- ACWR Gauge -->
+          <div class="lm-card lm-acwr-card">
+            <div class="lm-card-head">
+              <span class="lm-card-title"><i class="fa-solid fa-gauge-high"></i> Anlık ACWR</span>
+              <span class="lm-card-badge" id="lmACWRBadge"></span>
+            </div>
+            <div class="lm-acwr-gauge-wrap">
+              <div class="lm-acwr-big" id="lmACWRBig">—</div>
+              <div class="lm-acwr-zone-label" id="lmACWRZoneLabel"></div>
+              <div class="lm-acwr-zone-bar" id="lmACWRZoneBar">
+                <div class="lm-zone-seg lm-zone-blue"   title="&lt;0.8 Yetersiz"></div>
+                <div class="lm-zone-seg lm-zone-green"  title="0.8-1.3 Optimal"></div>
+                <div class="lm-zone-seg lm-zone-yellow" title="1.3-1.5 Dikkat"></div>
+                <div class="lm-zone-seg lm-zone-orange" title="1.5-2.0 Yüksek Risk"></div>
+                <div class="lm-zone-seg lm-zone-red"    title="&gt;2.0 Kritik"></div>
+                <div class="lm-zone-indicator" id="lmZoneIndicator" style="display:none"></div>
+              </div>
+              <div class="lm-acwr-stats">
+                <div class="lm-acwr-stat">
+                  <div class="lm-acwr-stat-val" id="lmAcuteVal">—</div>
+                  <div class="lm-acwr-stat-lbl">Akut (7g)</div>
+                </div>
+                <div class="lm-acwr-stat-divider"></div>
+                <div class="lm-acwr-stat">
+                  <div class="lm-acwr-stat-val" id="lmChronicVal">—</div>
+                  <div class="lm-acwr-stat-lbl">Kronik (28g)</div>
+                </div>
+                <div class="lm-acwr-stat-divider"></div>
+                <div class="lm-acwr-stat">
+                  <div class="lm-acwr-stat-val" id="lmDataDaysVal">—</div>
+                  <div class="lm-acwr-stat-lbl">Veri Günü</div>
+                </div>
+              </div>
+              <div class="lm-acwr-partial hidden" id="lmACWRPartial">
+                <i class="fa-solid fa-circle-info"></i> 28 günlük veri tamamlanana kadar kısmi hesaplama gösterilmektedir.
+              </div>
+              <div class="lm-acwr-advice" id="lmACWRAdvice"></div>
+            </div>
+          </div>
+
+          <!-- ACWR Trend Grafiği -->
+          <div class="lm-card lm-chart-card">
+            <div class="lm-card-head">
+              <span class="lm-card-title"><i class="fa-solid fa-chart-line"></i> ACWR Trendi <span class="lm-card-subtitle">(Son 90 Gün)</span></span>
+              <div class="lm-zone-legend">
+                <span class="lm-legend-dot" style="background:#3B82F6"></span>Yetersiz
+                <span class="lm-legend-dot" style="background:#22C55E"></span>Optimal
+                <span class="lm-legend-dot" style="background:#EAB308"></span>Dikkat
+                <span class="lm-legend-dot" style="background:#F97316"></span>Yüksek Risk
+                <span class="lm-legend-dot" style="background:#EF4444"></span>Kritik
+              </div>
+            </div>
+            <div class="lm-chart-wrap">
+              <canvas id="lmACWRChart"></canvas>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- SATIR 3: Alt grafikler -->
+      <div class="lm-bottom-grid">
+
+        <div class="lm-card lm-chart-card">
+          <div class="lm-card-head">
+            <span class="lm-card-title"><i class="fa-solid fa-chart-column"></i> Haftalık Yük <span class="lm-card-subtitle">(Son 7 Gün)</span></span>
+            <span class="lm-summary-total" id="lmWeeklyTotal"></span>
+          </div>
+          <div class="lm-chart-wrap lm-chart-sm">
+            <canvas id="lmWeeklyChart"></canvas>
+          </div>
+        </div>
+
+        <div class="lm-card lm-chart-card">
+          <div class="lm-card-head">
+            <span class="lm-card-title"><i class="fa-solid fa-chart-line"></i> Hooper Index <span class="lm-card-subtitle">(Son 30 Gün)</span></span>
+          </div>
+          <div class="lm-chart-wrap lm-chart-sm">
+            <canvas id="lmHooperChart"></canvas>
+          </div>
+        </div>
+
+        <div class="lm-card lm-monthly-card">
+          <div class="lm-card-head">
+            <span class="lm-card-title"><i class="fa-solid fa-calendar-days"></i> Aylık Özet</span>
+          </div>
+          <div class="lm-monthly-stats" id="lmMonthlyStats"></div>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
 
   <main class="content" id="libraryView">
     <div id="activeFilters" class="active-filters"></div>
@@ -836,14 +1136,28 @@
     <button class="modal-close" id="sessionExClose"><i class="fa-solid fa-xmark"></i></button>
     <h2 id="sessionExTitle">Add Exercise</h2>
 
-    <div class="ex-search-wrap">
-      <i class="fa-solid fa-magnifying-glass search-icon"></i>
-      <input type="text" id="sex-search" placeholder="Search exercises…" autocomplete="off" />
+    <!-- Step 1: Category (movement pattern) -->
+    <div class="sex-step" id="sexStep1">
+      <label class="sex-step-label"><span class="sex-step-num">1</span> Kategori Seç</label>
+      <select id="sex-category" class="form-input sex-category-select">
+        <option value="">— Kategori seçin —</option>
+      </select>
     </div>
-    <div id="sexSearchResults" class="ex-search-results"></div>
+
+    <!-- Step 2: Exercise list from category -->
+    <div class="sex-step hidden" id="sexStep2">
+      <label class="sex-step-label"><span class="sex-step-num">2</span> Egzersiz Seç</label>
+      <div class="ex-search-wrap">
+        <i class="fa-solid fa-magnifying-glass search-icon"></i>
+        <input type="text" id="sex-search" placeholder="Ara…" autocomplete="off" />
+      </div>
+      <div id="sexSearchResults" class="ex-search-results sex-exercise-list"></div>
+    </div>
+
     <div id="sexSelectedDisplay" class="selected-exercise-display hidden">
       <i class="fa-solid fa-dumbbell"></i>
       <span id="sexSelectedName">—</span>
+      <button class="sex-change-btn" id="sexChangeBtn" title="Değiştir"><i class="fa-solid fa-rotate"></i></button>
     </div>
 
     <!-- Exercise-level parameters (apply to all sets by default) -->
@@ -1154,6 +1468,118 @@
 </div>
 
 
-<script src="/static/app.js?v=2"></script>
+<!-- ── Excel Import Modal ────────────────────────────────────────────────── -->
+<div class="modal-overlay hidden" id="importExcelModal">
+  <div class="modal" style="max-width:460px">
+    <button class="modal-close" id="importExcelModalClose"><i class="fa-solid fa-xmark"></i></button>
+    <h2><i class="fa-solid fa-file-excel" style="color:#1D6F42;margin-right:8px"></i>Excel'den İçe Aktar</h2>
+
+    <div class="program-form-section" style="margin-top:16px">
+      <div class="program-form-section-label">Atama</div>
+      <div class="chip-selector" id="importAssignChips" style="margin-top:6px">
+        <button class="chip active" data-val="none">Atamasız</button>
+        <button class="chip" data-val="athlete">Sporcuya</button>
+        <button class="chip" data-val="team">Takıma</button>
+      </div>
+    </div>
+
+    <div class="form-group hidden" id="importAthleteSection" style="margin-top:14px">
+      <label>Sporcu Seç</label>
+      <select id="importAthleteSelect" style="width:100%;padding:8px 10px;border:1.5px solid #E4E7ED;border-radius:8px;font-size:0.85rem;outline:none;box-sizing:border-box;margin-top:6px">
+        <option value="">— Sporcu seçin —</option>
+      </select>
+    </div>
+
+    <div class="form-group hidden" id="importTeamSection" style="margin-top:14px">
+      <label>Takım Seç</label>
+      <select id="importTeamSelect" style="width:100%;padding:8px 10px;border:1.5px solid #E4E7ED;border-radius:8px;font-size:0.85rem;outline:none;box-sizing:border-box;margin-top:6px">
+        <option value="">— Takım seçin —</option>
+      </select>
+    </div>
+
+    <div class="form-submit-row" style="margin-top:24px">
+      <button class="btn-ghost" id="importExcelModalCancel">İptal</button>
+      <button class="btn-primary" id="importExcelModalConfirm">
+        <i class="fa-solid fa-upload"></i> Dosya Seç &amp; Aktar
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Training Log Modal -->
+<div id="lmTrainingModal" class="modal-overlay hidden">
+  <div class="modal-card lm-training-modal-card">
+    <div class="modal-header">
+      <h3 id="lmTrainingModalTitle">Antrenman Seansı Kaydet</h3>
+      <button class="modal-close" id="lmTrainingModalClose"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body">
+
+      <div class="form-group">
+        <label>Seans Adı <span class="form-optional">(opsiyonel)</span></label>
+        <input type="text" id="lmLogSessionName" placeholder="ör. Sabah Kondisyon, Teknik Çalışma…" />
+      </div>
+
+      <div class="form-row-2">
+        <div class="form-group">
+          <label>Tarih</label>
+          <input type="date" id="lmLogDate" />
+        </div>
+        <div class="form-group">
+          <label>Süre (dakika)</label>
+          <input type="number" id="lmLogDuration" min="1" max="480" placeholder="60" />
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Algılanan Zorluk (RPE) — <span id="lmRpeDisplay" style="color:#4A7CF6;font-weight:600">seçilmedi</span></label>
+        <div class="lm-rpe-grid">
+          <button class="lm-rpe-btn" data-val="1">1<span>Çok Kolay</span></button>
+          <button class="lm-rpe-btn" data-val="2">2<span>Kolay</span></button>
+          <button class="lm-rpe-btn" data-val="3">3<span>Orta</span></button>
+          <button class="lm-rpe-btn" data-val="4">4<span>Biraz Zor</span></button>
+          <button class="lm-rpe-btn" data-val="5">5<span>Zor</span></button>
+          <button class="lm-rpe-btn" data-val="6">6<span>Zor+</span></button>
+          <button class="lm-rpe-btn" data-val="7">7<span>Çok Zor</span></button>
+          <button class="lm-rpe-btn" data-val="8">8<span>Ağır</span></button>
+          <button class="lm-rpe-btn" data-val="9">9<span>Maks. Yakın</span></button>
+          <button class="lm-rpe-btn" data-val="10">10<span>Maksimal</span></button>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Seans Türü</label>
+        <div class="chip-selector" id="lmSessionTypeChips">
+          <button class="chip active" data-val="strength">Güç</button>
+          <button class="chip" data-val="conditioning">Kondisyon</button>
+          <button class="chip" data-val="technical">Teknik</button>
+          <button class="chip" data-val="competition">Yarışma</button>
+          <button class="chip" data-val="recovery">Toparlanma</button>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Seans Yükü (Hesaplanan)</label>
+        <div class="lm-load-preview" id="lmLoadPreview">
+          RPE × Süre = <strong id="lmLoadVal">—</strong> <span>AU</span>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Notlar <span class="form-optional">(opsiyonel)</span></label>
+        <textarea id="lmLogNotes" rows="3" placeholder="Antrenman hakkında notlarınız…"></textarea>
+      </div>
+
+    </div>
+    <div class="modal-footer">
+      <button class="btn-ghost" id="lmTrainingModalCancel">İptal</button>
+      <button class="btn-primary" id="lmSaveTrainingBtn">
+        <i class="fa-solid fa-floppy-disk"></i> Kaydet
+      </button>
+    </div>
+  </div>
+</div>
+
+<script src="/static/app.js?v=3"></script>
 </body>
 </html>

@@ -329,6 +329,52 @@ class MovementPatternDB(Base):
     name  = Column(String,  nullable=False, unique=True)
     color = Column(String,  nullable=True)   # hex color, e.g. "#FF5733"
 
+
+class DailyWellnessDB(Base):
+    __tablename__ = "daily_wellness"
+
+    id              = Column(Integer, primary_key=True, index=True)
+    athlete_id      = Column(Integer, nullable=False)
+    date            = Column(String,  nullable=False)   # YYYY-MM-DD
+    sleep_quality   = Column(Integer, nullable=False)   # 1-5
+    fatigue         = Column(Integer, nullable=False)   # 1-5
+    muscle_soreness = Column(Integer, nullable=False)   # 1-5
+    stress_mood     = Column(Integer, nullable=False)   # 1-5
+    hooper_index    = Column(Integer, nullable=False)   # toplam 4-20
+    notes           = Column(Text,    nullable=True)
+    created_at      = Column(String,  nullable=False)
+
+
+class TrainingLogDB(Base):
+    __tablename__ = "training_logs"
+
+    id                 = Column(Integer, primary_key=True, index=True)
+    athlete_id         = Column(Integer, nullable=False)
+    program_session_id = Column(Integer, nullable=True)   # program_sessions.id (opsiyonel)
+    session_name       = Column(String,  nullable=True)
+    log_date           = Column(String,  nullable=False)  # YYYY-MM-DD
+    duration_minutes   = Column(Integer, nullable=False)
+    rpe                = Column(Float,   nullable=False)  # 1.0 – 10.0
+    session_load       = Column(Float,   nullable=False)  # rpe × duration_minutes
+    session_type       = Column(String,  nullable=True)   # strength|conditioning|technical|competition|recovery
+    notes              = Column(Text,    nullable=True)
+    created_at         = Column(String,  nullable=False)
+
+
+class ACWRCacheDB(Base):
+    __tablename__ = "acwr_cache"
+
+    id               = Column(Integer, primary_key=True, index=True)
+    athlete_id       = Column(Integer, nullable=False)
+    date             = Column(String,  nullable=False)   # YYYY-MM-DD
+    daily_load       = Column(Float,   nullable=False, default=0.0)
+    acute_load_7d    = Column(Float,   nullable=False, default=0.0)
+    chronic_load_28d = Column(Float,   nullable=False, default=0.0)
+    acwr             = Column(Float,   nullable=True)    # NULL → kronik yük henüz yok
+    data_days        = Column(Integer, nullable=False, default=0)
+    updated_at       = Column(String,  nullable=False)
+
+
 Base.metadata.create_all(bind=engine)
 
 # ── Safe migrations ────────────────────────────────────────────────────────────
@@ -509,6 +555,42 @@ class TeamIn(BaseModel):
 
 class TeamMemberIn(BaseModel):
     athlete_id: int
+
+# ── Load Monitoring schemas ────────────────────────────────────────────────────
+
+class WellnessIn(BaseModel):
+    athlete_id:      int
+    date:            str              # YYYY-MM-DD
+    sleep_quality:   int              # 1-5
+    fatigue:         int              # 1-5
+    muscle_soreness: int              # 1-5
+    stress_mood:     int              # 1-5
+    notes:           Optional[str]  = None
+
+class WellnessUpdateIn(BaseModel):
+    sleep_quality:   Optional[int] = None
+    fatigue:         Optional[int] = None
+    muscle_soreness: Optional[int] = None
+    stress_mood:     Optional[int] = None
+    notes:           Optional[str] = None
+
+class TrainingLogIn(BaseModel):
+    athlete_id:         int
+    program_session_id: Optional[int]   = None
+    session_name:       Optional[str]   = None
+    log_date:           str               # YYYY-MM-DD
+    duration_minutes:   int
+    rpe:                float             # 1.0 – 10.0
+    session_type:       Optional[str]   = None  # strength|conditioning|technical|competition|recovery
+    notes:              Optional[str]   = None
+
+class TrainingLogUpdateIn(BaseModel):
+    session_name:     Optional[str]   = None
+    duration_minutes: Optional[int]   = None
+    rpe:              Optional[float] = None
+    session_type:     Optional[str]   = None
+    notes:            Optional[str]   = None
+
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
 def _athlete_username(name: str, db: Session, exclude_id: int = None) -> str:
@@ -763,6 +845,167 @@ def _row_sex_full(e: SessionExerciseDB, db: Session) -> dict:
     )
     return _row_sex(e, [_row_set(s) for s in sets])
 
+
+def _row_wellness(w: DailyWellnessDB) -> dict:
+    return {
+        "id":              w.id,
+        "athlete_id":      w.athlete_id,
+        "date":            w.date,
+        "sleep_quality":   w.sleep_quality,
+        "fatigue":         w.fatigue,
+        "muscle_soreness": w.muscle_soreness,
+        "stress_mood":     w.stress_mood,
+        "hooper_index":    w.hooper_index,
+        "notes":           w.notes,
+        "created_at":      w.created_at,
+    }
+
+
+def _row_training_log(t: TrainingLogDB) -> dict:
+    return {
+        "id":                 t.id,
+        "athlete_id":         t.athlete_id,
+        "program_session_id": t.program_session_id,
+        "session_name":       t.session_name,
+        "log_date":           t.log_date,
+        "duration_minutes":   t.duration_minutes,
+        "rpe":                t.rpe,
+        "session_load":       t.session_load,
+        "session_type":       t.session_type,
+        "notes":              t.notes,
+        "created_at":         t.created_at,
+    }
+
+
+def _validate_wellness_fields(sleep_quality, fatigue, muscle_soreness, stress_mood):
+    for name, val in [
+        ("sleep_quality", sleep_quality),
+        ("fatigue", fatigue),
+        ("muscle_soreness", muscle_soreness),
+        ("stress_mood", stress_mood),
+    ]:
+        if val is not None and not (1 <= val <= 5):
+            raise HTTPException(400, f"{name} must be between 1 and 5")
+
+
+def _validate_rpe(rpe: float):
+    if not (1.0 <= rpe <= 10.0):
+        raise HTTPException(400, "RPE must be between 1.0 and 10.0")
+
+
+def _athlete_id_for_user(user_id: int, db: Session) -> Optional[int]:
+    a = db.query(AthleteDB).filter(AthleteDB.user_id == user_id).first()
+    return a.id if a else None
+
+
+# ── ACWR Hesaplama Motoru (Rolling Average) ────────────────────────────────────
+
+def _compute_acwr(athlete_id: int, db: Session) -> dict:
+    """Rolling Average ACWR hesaplar.
+
+    Session Load = RPE × (süre_dakika / 60)  →  AU (saat cinsinden)
+    Akut         = son 7 günün toplam session_load'u
+    Kronik       = son 28 günün toplam session_load'u / elapsed_weeks
+                   elapsed_weeks = min(4, max(1, veri_günü/7))
+                   Bootstrap düzeltmesi: ilk 28 günde gerçek hafta sayısına bölünür.
+    ACWR         = Akut / Kronik  (kronik=0 ise None)
+    """
+    logs = (
+        db.query(TrainingLogDB)
+        .filter(TrainingLogDB.athlete_id == athlete_id)
+        .order_by(TrainingLogDB.log_date)
+        .all()
+    )
+
+    if not logs:
+        return {
+            "timeline": [],
+            "current_acwr": None,
+            "current_acute": 0.0,
+            "current_chronic": 0.0,
+            "data_days": 0,
+            "acwr_zone": "insufficient_data",
+        }
+
+    # Günlük yük toplamları  {date_str: total_load}
+    daily_loads: dict = {}
+    for log in logs:
+        daily_loads[log.log_date] = daily_loads.get(log.log_date, 0.0) + log.session_load
+
+    first_date = datetime.strptime(min(daily_loads.keys()), "%Y-%m-%d").date()
+    today      = datetime.utcnow().date()
+
+    timeline = []
+    cursor = first_date
+    while cursor <= today:
+        ds = cursor.strftime("%Y-%m-%d")
+        daily_load = daily_loads.get(ds, 0.0)
+
+        acute = sum(
+            daily_loads.get((cursor - timedelta(days=i)).strftime("%Y-%m-%d"), 0.0)
+            for i in range(7)
+        )
+        chronic_total = sum(
+            daily_loads.get((cursor - timedelta(days=i)).strftime("%Y-%m-%d"), 0.0)
+            for i in range(28)
+        )
+        data_days_from_first = max(1, (cursor - first_date).days + 1)
+        elapsed_weeks = min(4, max(1, data_days_from_first / 7))
+        chronic   = chronic_total / elapsed_weeks
+        data_days = sum(
+            1 for i in range(28)
+            if daily_loads.get((cursor - timedelta(days=i)).strftime("%Y-%m-%d"), 0.0) > 0
+        )
+
+        acwr = round(acute / chronic, 2) if chronic > 0 else None
+
+        timeline.append({
+            "date":          ds,
+            "daily_load":    round(daily_load, 1),
+            "acute_load":    round(acute, 1),
+            "chronic_load":  round(chronic, 1),
+            "acwr":          acwr,
+            "data_days":     data_days,
+            "is_partial":    data_days < 28,
+        })
+        cursor += timedelta(days=1)
+
+    last = timeline[-1] if timeline else {}
+    current_acwr = last.get("acwr")
+
+    if current_acwr is None:
+        zone = "insufficient_data"
+    elif current_acwr < 0.8:
+        zone = "undertraining"
+    elif current_acwr <= 1.3:
+        zone = "optimal"
+    elif current_acwr <= 1.5:
+        zone = "caution"
+    elif current_acwr <= 2.0:
+        zone = "high_risk"
+    else:
+        zone = "critical"
+
+    return {
+        "timeline":        timeline,
+        "current_acwr":    current_acwr,
+        "current_acute":   last.get("acute_load", 0.0),
+        "current_chronic": last.get("chronic_load", 0.0),
+        "data_days":       last.get("data_days", 0),
+        "acwr_zone":       zone,
+    }
+
+
+def _hooper_zone(hooper_index: int) -> str:
+    if hooper_index <= 8:
+        return "excellent"
+    elif hooper_index <= 12:
+        return "normal"
+    elif hooper_index <= 16:
+        return "caution"
+    else:
+        return "critical"
+
 # ── FastAPI app ────────────────────────────────────────────────────────────────
 
 app = FastAPI(title="Exercise Library", version="3.0.0")
@@ -817,6 +1060,8 @@ async def auth_middleware(request: Request, call_next):
         coach_or_staff_only = True
     elif path.startswith("/api/programs") and method in ("POST", "PUT", "DELETE"):
         coach_or_staff_only = True
+    elif path.startswith("/api/import") and method == "POST":
+        coach_or_staff_only = True
     elif path.startswith(("/api/sessions", "/api/session-exercises")) and method in ("POST", "PUT", "DELETE"):
         coach_or_staff_only = True
     elif path.startswith("/api/one-rm") and method in ("POST", "PUT", "DELETE"):
@@ -827,6 +1072,10 @@ async def auth_middleware(request: Request, call_next):
         coach_or_staff_only = True
     elif path.startswith("/api/teams") and method in ("POST", "PUT", "DELETE"):
         coach_or_staff_only = True
+    elif path.startswith("/api/wellness") and method in ("POST", "PUT", "DELETE"):
+        pass  # sporcu kendi verisini yazabilir — endpoint içinde kontrol edilir
+    elif path.startswith("/api/training-log") and method in ("POST", "PUT", "DELETE"):
+        pass  # sporcu kendi verisini yazabilir — endpoint içinde kontrol edilir
 
     if coach_only_strict and role != "coach":
         return JSONResponse({"detail": "Coach access required"}, status_code=403)
@@ -2300,3 +2549,599 @@ def root():
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     response.headers["Pragma"] = "no-cache"
     return response
+
+
+# ── Excel Import ───────────────────────────────────────────────────────────────
+
+from fastapi import UploadFile, File, Form
+import tempfile
+from excel_parser import parse_excel_file
+
+
+def _normalize(s: str) -> str:
+    """Karşılaştırma için string normalize et: küçük harf, tire/noktalama kaldır."""
+    s = s.lower().strip()
+    s = re.sub(r"[-_/().]", " ", s)
+    s = re.sub(r"\s+", " ", s)
+    return s
+
+
+def _fuzzy_match_exercise(name: str, db: Session) -> int | None:
+    """Egzersiz adını veritabanındaki egzersizlerle eşleştirir. ID döner, bulamazsa None."""
+    # 1. Tam eşleşme (case-insensitive)
+    ex = db.query(ExerciseDB).filter(ExerciseDB.name.ilike(name)).first()
+    if ex:
+        return ex.id
+
+    # 2. Normalize ederek tam eşleşme
+    norm_name = _normalize(name)
+    all_exercises = db.query(ExerciseDB).all()
+    for ex in all_exercises:
+        if _normalize(ex.name) == norm_name:
+            return ex.id
+
+    # 3. Normalize edilmiş kısmi eşleşme — her anlamlı kelime içermeli
+    words = [w for w in norm_name.split() if len(w) > 2]
+    if words:
+        best = None
+        best_score = 0
+        for ex in all_exercises:
+            norm_ex = _normalize(ex.name)
+            score = sum(1 for w in words if w in norm_ex)
+            if score == len(words) and score > best_score:
+                best = ex
+                best_score = score
+        if best:
+            return best.id
+
+    # 4. Çoğunluk eşleşmesi — kelimelerin yarısından fazlası eşleşiyorsa kabul et
+    if words and len(words) >= 2:
+        best = None
+        best_score = 0
+        for ex in all_exercises:
+            norm_ex = _normalize(ex.name)
+            score = sum(1 for w in words if w in norm_ex)
+            ratio = score / len(words)
+            if ratio >= 0.6 and score > best_score:
+                best = ex
+                best_score = score
+        if best:
+            return best.id
+
+    return None
+
+
+@app.post("/api/import/excel", status_code=201)
+async def import_excel(
+    file: UploadFile = File(...),
+    program_name: str = Form(""),
+    goal: str = Form("hypertrophy"),
+    sport: str = Form(""),
+    athlete_id: Optional[int] = Form(None),
+    team_id: Optional[int] = Form(None),
+    db: Session = Depends(get_db),
+):
+    """
+    Excel dosyasını yükle ve sisteme program olarak aktar.
+
+    Her sheet ayrı bir program olarak oluşturulur.
+    Hafta sayısı Excel'den otomatik tespit edilir.
+    Egzersiz isimleri fuzzy match ile veritabanıyla eşleştirilir.
+    Eşleşmeyen egzersizler exercise_name olarak string kaydedilir (ID olmadan).
+    """
+    if not file.filename.endswith((".xlsx", ".xls")):
+        raise HTTPException(400, "Sadece .xlsx veya .xls dosyaları kabul edilir")
+
+    # Geçici dosyaya yaz
+    suffix = ".xlsx" if file.filename.endswith(".xlsx") else ".xls"
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+        content = await file.read()
+        tmp.write(content)
+        tmp_path = tmp.name
+
+    try:
+        sheets = parse_excel_file(tmp_path)
+    except Exception as e:
+        raise HTTPException(400, f"Excel okunamadı: {str(e)}")
+    finally:
+        import os as _os
+        _os.unlink(tmp_path)
+
+    if not sheets:
+        raise HTTPException(400, "Geçerli sheet bulunamadı")
+
+    created_programs = []
+    unmatched_exercises = []
+
+    for sheet in sheets:
+        if "error" in sheet:
+            continue
+        if not sheet["days"]:
+            continue
+
+        num_weeks = sheet["num_weeks"]
+        days = sheet["days"]
+        num_days = len(days)
+
+        p_name = program_name or sheet["sheet_name"]
+
+        # Program oluştur
+        p = ProgramDB(
+            name               = p_name,
+            duration_weeks     = num_weeks,
+            days_per_week      = num_days,
+            goal               = goal,
+            periodization_type = "block",
+            sport              = sport or None,
+            athlete_id         = athlete_id,
+            team_id            = team_id,
+            notes              = f"Excel'den import edildi: {sheet['sheet_name']}",
+            created_at         = datetime.utcnow().isoformat(),
+        )
+        db.add(p)
+        db.flush()
+
+        # Haftaları oluştur
+        phases = _auto_phases(num_weeks, "block")
+        week_objs = []
+        for i, phase in enumerate(phases, start=1):
+            w = ProgramWeekDB(program_id=p.id, week_number=i, phase=phase)
+            db.add(w)
+            week_objs.append(w)
+        db.flush()
+
+        # Her hafta için sessionları ve egzersizleri oluştur
+        for week_idx, week_obj in enumerate(week_objs):
+            for day_idx, (day_name, exercises) in enumerate(days.items(), start=1):
+                day_num = int(re.search(r"\d+", day_name).group()) if re.search(r"\d+", day_name) else day_idx
+
+                session = ProgramSessionDB(
+                    week_id      = week_obj.id,
+                    day_number   = day_num,
+                    session_name = day_name,
+                    sort_order   = day_idx,
+                )
+                db.add(session)
+                db.flush()
+
+                for sort_i, ex in enumerate(exercises, start=1):
+                    exercise_id = _fuzzy_match_exercise(ex["exercise_name"], db)
+
+                    if exercise_id is None:
+                        unmatched_exercises.append(ex["exercise_name"])
+
+                    # Bu haftanın set listesi
+                    week_sets = ex["sets"][week_idx] if week_idx < len(ex["sets"]) else []
+
+                    num_sets = len(week_sets)
+                    # reps ve intensity_type/value → ilk setten al (özet için)
+                    first_set = week_sets[0] if week_sets else {}
+                    summary_reps          = first_set.get("reps", "")
+                    summary_intensity_type  = first_set.get("intensity_type", "load_kg")
+                    summary_intensity_value = first_set.get("intensity_value", "0")
+
+                    se = SessionExerciseDB(
+                        session_id      = session.id,
+                        exercise_id     = exercise_id,
+                        exercise_name   = ex["exercise_name"],
+                        sort_order      = sort_i,
+                        sets            = num_sets,
+                        reps            = summary_reps,
+                        intensity_type  = summary_intensity_type,
+                        intensity_value = summary_intensity_value,
+                        notes           = ex["notes"] or None,
+                        pairing_group   = ex["pairing_group"] or None,
+                        pairing_slot    = ex["pairing_slot"] or None,
+                    )
+                    db.add(se)
+                    db.flush()
+
+                    # Set bazlı detayları kaydet
+                    for s in week_sets:
+                        set_row = SessionExerciseSetDB(
+                            session_exercise_id = se.id,
+                            set_number          = s["set_number"],
+                            reps                = s["reps"],
+                            intensity_type      = s["intensity_type"],
+                            intensity_value     = s["intensity_value"],
+                        )
+                        db.add(set_row)
+
+        db.commit()
+        db.refresh(p)
+        created_programs.append(_row_program(p))
+
+    return {
+        "imported": len(created_programs),
+        "programs": created_programs,
+        "unmatched_exercises": list(set(unmatched_exercises)),
+    }
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# LOAD MONITORING — Wellness & Training Log & Dashboard
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _assert_athlete_access(request: Request, athlete_id: int, db: Session):
+    """Sporcu kendi verisine, antrenör/staff tüm verilere erişebilir."""
+    role = request.state.user_role
+    if role in ("coach", "staff"):
+        return
+    uid = request.state.user_id
+    own_athlete_id = _athlete_id_for_user(uid, db)
+    if own_athlete_id != athlete_id:
+        raise HTTPException(403, "Bu verilere erişim yetkiniz yok")
+
+
+# ── Wellness endpoints ─────────────────────────────────────────────────────────
+
+@app.post("/api/wellness", status_code=201)
+def create_wellness(data: WellnessIn, request: Request, db: Session = Depends(get_db)):
+    """Sabah wellness check-in kaydı oluşturur. Aynı gün için ikinci girişi engeller."""
+    _assert_athlete_access(request, data.athlete_id, db)
+    _validate_wellness_fields(data.sleep_quality, data.fatigue, data.muscle_soreness, data.stress_mood)
+
+    existing = (
+        db.query(DailyWellnessDB)
+        .filter(DailyWellnessDB.athlete_id == data.athlete_id, DailyWellnessDB.date == data.date)
+        .first()
+    )
+    if existing:
+        raise HTTPException(400, f"{data.date} tarihi için zaten bir wellness kaydı var. Güncellemek için PUT kullanın.")
+
+    if not db.query(AthleteDB).filter(AthleteDB.id == data.athlete_id).first():
+        raise HTTPException(404, "Sporcu bulunamadı")
+
+    hooper = data.sleep_quality + data.fatigue + data.muscle_soreness + data.stress_mood
+    row = DailyWellnessDB(
+        athlete_id      = data.athlete_id,
+        date            = data.date,
+        sleep_quality   = data.sleep_quality,
+        fatigue         = data.fatigue,
+        muscle_soreness = data.muscle_soreness,
+        stress_mood     = data.stress_mood,
+        hooper_index    = hooper,
+        notes           = data.notes,
+        created_at      = datetime.utcnow().isoformat(),
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return {**_row_wellness(row), "hooper_zone": _hooper_zone(hooper)}
+
+
+@app.put("/api/wellness/{wellness_id}")
+def update_wellness(wellness_id: int, data: WellnessUpdateIn, request: Request, db: Session = Depends(get_db)):
+    row = db.get(DailyWellnessDB, wellness_id)
+    if not row:
+        raise HTTPException(404, "Wellness kaydı bulunamadı")
+    _assert_athlete_access(request, row.athlete_id, db)
+    _validate_wellness_fields(data.sleep_quality, data.fatigue, data.muscle_soreness, data.stress_mood)
+
+    if data.sleep_quality   is not None: row.sleep_quality   = data.sleep_quality
+    if data.fatigue         is not None: row.fatigue         = data.fatigue
+    if data.muscle_soreness is not None: row.muscle_soreness = data.muscle_soreness
+    if data.stress_mood     is not None: row.stress_mood     = data.stress_mood
+    if data.notes           is not None: row.notes           = data.notes
+
+    row.hooper_index = row.sleep_quality + row.fatigue + row.muscle_soreness + row.stress_mood
+    db.commit()
+    db.refresh(row)
+    return {**_row_wellness(row), "hooper_zone": _hooper_zone(row.hooper_index)}
+
+
+@app.get("/api/wellness/{athlete_id}")
+def get_wellness(
+    athlete_id: int,
+    request:    Request,
+    db:         Session = Depends(get_db),
+    limit:      int     = Query(30, ge=1, le=365),
+    offset:     int     = Query(0, ge=0),
+):
+    _assert_athlete_access(request, athlete_id, db)
+    rows = (
+        db.query(DailyWellnessDB)
+        .filter(DailyWellnessDB.athlete_id == athlete_id)
+        .order_by(DailyWellnessDB.date.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+    total = db.query(DailyWellnessDB).filter(DailyWellnessDB.athlete_id == athlete_id).count()
+    return {
+        "total": total,
+        "items": [{**_row_wellness(r), "hooper_zone": _hooper_zone(r.hooper_index)} for r in rows],
+    }
+
+
+@app.get("/api/wellness/{athlete_id}/today")
+def get_wellness_today(athlete_id: int, request: Request, db: Session = Depends(get_db)):
+    _assert_athlete_access(request, athlete_id, db)
+    today = datetime.utcnow().strftime("%Y-%m-%d")
+    row = (
+        db.query(DailyWellnessDB)
+        .filter(DailyWellnessDB.athlete_id == athlete_id, DailyWellnessDB.date == today)
+        .first()
+    )
+    if not row:
+        return {"exists": False, "data": None}
+    return {"exists": True, "data": {**_row_wellness(row), "hooper_zone": _hooper_zone(row.hooper_index)}}
+
+
+@app.delete("/api/wellness/{wellness_id}", status_code=204)
+def delete_wellness(wellness_id: int, request: Request, db: Session = Depends(get_db)):
+    row = db.get(DailyWellnessDB, wellness_id)
+    if not row:
+        raise HTTPException(404, "Wellness kaydı bulunamadı")
+    _assert_athlete_access(request, row.athlete_id, db)
+    db.delete(row)
+    db.commit()
+
+
+# ── Training Log endpoints ─────────────────────────────────────────────────────
+
+@app.post("/api/training-log", status_code=201)
+def create_training_log(data: TrainingLogIn, request: Request, db: Session = Depends(get_db)):
+    """Antrenman seansı kaydeder. Günde birden fazla seans girilmesine izin verir."""
+    _assert_athlete_access(request, data.athlete_id, db)
+    _validate_rpe(data.rpe)
+
+    if data.duration_minutes < 1:
+        raise HTTPException(400, "Süre en az 1 dakika olmalıdır")
+    if not db.query(AthleteDB).filter(AthleteDB.id == data.athlete_id).first():
+        raise HTTPException(404, "Sporcu bulunamadı")
+
+    # program_session_id verilmişse session adını otomatik al
+    session_name = data.session_name
+    if data.program_session_id and not session_name:
+        ps = db.get(ProgramSessionDB, data.program_session_id)
+        if ps:
+            session_name = ps.session_name
+
+    session_load = round(data.rpe * (data.duration_minutes / 60.0), 2)
+
+    row = TrainingLogDB(
+        athlete_id         = data.athlete_id,
+        program_session_id = data.program_session_id,
+        session_name       = session_name,
+        log_date           = data.log_date,
+        duration_minutes   = data.duration_minutes,
+        rpe                = data.rpe,
+        session_load       = session_load,
+        session_type       = data.session_type,
+        notes              = data.notes,
+        created_at         = datetime.utcnow().isoformat(),
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return _row_training_log(row)
+
+
+@app.put("/api/training-log/{log_id}")
+def update_training_log(log_id: int, data: TrainingLogUpdateIn, request: Request, db: Session = Depends(get_db)):
+    row = db.get(TrainingLogDB, log_id)
+    if not row:
+        raise HTTPException(404, "Antrenman kaydı bulunamadı")
+    _assert_athlete_access(request, row.athlete_id, db)
+
+    if data.rpe              is not None:
+        _validate_rpe(data.rpe)
+        row.rpe = data.rpe
+    if data.duration_minutes is not None:
+        if data.duration_minutes < 1:
+            raise HTTPException(400, "Süre en az 1 dakika olmalıdır")
+        row.duration_minutes = data.duration_minutes
+    if data.session_name     is not None: row.session_name = data.session_name
+    if data.session_type     is not None: row.session_type = data.session_type
+    if data.notes            is not None: row.notes        = data.notes
+
+    row.session_load = round(row.rpe * (row.duration_minutes / 60.0), 2)
+    db.commit()
+    db.refresh(row)
+    return _row_training_log(row)
+
+
+@app.delete("/api/training-log/{log_id}", status_code=204)
+def delete_training_log(log_id: int, request: Request, db: Session = Depends(get_db)):
+    row = db.get(TrainingLogDB, log_id)
+    if not row:
+        raise HTTPException(404, "Antrenman kaydı bulunamadı")
+    _assert_athlete_access(request, row.athlete_id, db)
+    db.delete(row)
+    db.commit()
+
+
+@app.get("/api/training-log/{athlete_id}")
+def get_training_logs(
+    athlete_id: int,
+    request:    Request,
+    db:         Session = Depends(get_db),
+    limit:      int     = Query(30, ge=1, le=365),
+    offset:     int     = Query(0, ge=0),
+    date_from:  Optional[str] = Query(None),
+    date_to:    Optional[str] = Query(None),
+):
+    _assert_athlete_access(request, athlete_id, db)
+    q = db.query(TrainingLogDB).filter(TrainingLogDB.athlete_id == athlete_id)
+    if date_from:
+        q = q.filter(TrainingLogDB.log_date >= date_from)
+    if date_to:
+        q = q.filter(TrainingLogDB.log_date <= date_to)
+
+    total = q.count()
+    rows  = q.order_by(TrainingLogDB.log_date.desc()).offset(offset).limit(limit).all()
+    return {"total": total, "items": [_row_training_log(r) for r in rows]}
+
+
+@app.get("/api/training-log/{athlete_id}/today")
+def get_training_log_today(athlete_id: int, request: Request, db: Session = Depends(get_db)):
+    _assert_athlete_access(request, athlete_id, db)
+    today = datetime.utcnow().strftime("%Y-%m-%d")
+    rows = (
+        db.query(TrainingLogDB)
+        .filter(TrainingLogDB.athlete_id == athlete_id, TrainingLogDB.log_date == today)
+        .order_by(TrainingLogDB.created_at)
+        .all()
+    )
+    total_load = sum(r.session_load for r in rows)
+    return {
+        "date":        today,
+        "sessions":    [_row_training_log(r) for r in rows],
+        "total_load":  round(total_load, 1),
+        "session_count": len(rows),
+    }
+
+
+# ── Migration endpoint ─────────────────────────────────────────────────────────
+
+@app.post("/api/admin/migrate-session-load")
+def migrate_session_load(request: Request, db: Session = Depends(get_db)):
+    """Eski dakika bazlı session_load değerlerini saat bazlı (RPE × süre/60) formüle dönüştürür.
+
+    Yalnızca coach yetkisiyle çalışır.
+    Zaten saat bazlı görünen kayıtlara dokunmaz (session_load < rpe * 2 kontrolü).
+    Dönen yanıt: kaç kayıt güncellendi, kaç kayıt atlandı.
+    """
+    if request.state.user_role != "coach":
+        raise HTTPException(403, "Coach access required")
+
+    rows = db.query(TrainingLogDB).all()
+    updated = 0
+    skipped = 0
+
+    for row in rows:
+        expected_hourly = round(row.rpe * (row.duration_minutes / 60.0), 2)
+        expected_minute = round(row.rpe * row.duration_minutes, 1)
+
+        # Zaten saat bazlı ise atla (dakika bazlı değerden belirgin şekilde küçük)
+        if abs(row.session_load - expected_minute) < 0.5:
+            row.session_load = expected_hourly
+            updated += 1
+        elif abs(row.session_load - expected_hourly) < 0.5:
+            skipped += 1
+        else:
+            # Belirsiz kayıt — yine de saat bazlı formüle çek
+            row.session_load = expected_hourly
+            updated += 1
+
+    db.commit()
+    return {"updated": updated, "skipped": skipped, "total": len(rows)}
+
+
+# ── Dashboard endpoint ─────────────────────────────────────────────────────────
+
+@app.get("/api/dashboard/{athlete_id}")
+def get_dashboard(athlete_id: int, request: Request, db: Session = Depends(get_db)):
+    """
+    Sporcu dashboard'u için tüm yük takip verisini tek endpoint'ten döner.
+
+    İçerik:
+    - ACWR timeline (Rolling Average) + mevcut zone
+    - Son 7 günlük yük özeti
+    - Son 30 günlük Hooper Index trendi
+    - Bugünkü wellness ve antrenman durumu
+    - Haftalık ve aylık yük toplamları
+    """
+    _assert_athlete_access(request, athlete_id, db)
+
+    athlete = db.get(AthleteDB, athlete_id)
+    if not athlete:
+        raise HTTPException(404, "Sporcu bulunamadı")
+
+    today    = datetime.utcnow().strftime("%Y-%m-%d")
+    acwr_data = _compute_acwr(athlete_id, db)
+
+    # Son 7 gün yük özeti
+    week_logs = (
+        db.query(TrainingLogDB)
+        .filter(
+            TrainingLogDB.athlete_id == athlete_id,
+            TrainingLogDB.log_date >= (datetime.utcnow() - timedelta(days=6)).strftime("%Y-%m-%d"),
+        )
+        .order_by(TrainingLogDB.log_date)
+        .all()
+    )
+    week_by_day: dict = {}
+    for log in week_logs:
+        week_by_day[log.log_date] = week_by_day.get(log.log_date, 0.0) + log.session_load
+
+    # Son 30 gün Hooper trendi
+    wellness_30 = (
+        db.query(DailyWellnessDB)
+        .filter(
+            DailyWellnessDB.athlete_id == athlete_id,
+            DailyWellnessDB.date >= (datetime.utcnow() - timedelta(days=29)).strftime("%Y-%m-%d"),
+        )
+        .order_by(DailyWellnessDB.date)
+        .all()
+    )
+
+    # Bugünkü durum
+    today_wellness = (
+        db.query(DailyWellnessDB)
+        .filter(DailyWellnessDB.athlete_id == athlete_id, DailyWellnessDB.date == today)
+        .first()
+    )
+    today_logs = (
+        db.query(TrainingLogDB)
+        .filter(TrainingLogDB.athlete_id == athlete_id, TrainingLogDB.log_date == today)
+        .all()
+    )
+
+    # Haftalık ve aylık toplam yük
+    week_start  = (datetime.utcnow() - timedelta(days=6)).strftime("%Y-%m-%d")
+    month_start = (datetime.utcnow() - timedelta(days=29)).strftime("%Y-%m-%d")
+
+    weekly_total = (
+        db.query(TrainingLogDB)
+        .filter(TrainingLogDB.athlete_id == athlete_id, TrainingLogDB.log_date >= week_start)
+        .all()
+    )
+    monthly_total = (
+        db.query(TrainingLogDB)
+        .filter(TrainingLogDB.athlete_id == athlete_id, TrainingLogDB.log_date >= month_start)
+        .all()
+    )
+
+    return {
+        "athlete": {
+            "id":    athlete.id,
+            "name":  athlete.name,
+            "sport": athlete.sport,
+        },
+        "today": {
+            "date": today,
+            "wellness": (
+                {**_row_wellness(today_wellness), "hooper_zone": _hooper_zone(today_wellness.hooper_index)}
+                if today_wellness else None
+            ),
+            "training_sessions": [_row_training_log(r) for r in today_logs],
+            "total_load_today":  round(sum(r.session_load for r in today_logs), 1),
+        },
+        "acwr": {
+            "current":         acwr_data["current_acwr"],
+            "zone":            acwr_data["acwr_zone"],
+            "acute_7d":        acwr_data["current_acute"],
+            "chronic_28d":     acwr_data["current_chronic"],
+            "data_days":       acwr_data["data_days"],
+            "is_partial":      acwr_data["data_days"] < 28,
+            "timeline":        acwr_data["timeline"][-90:],  # son 90 gün grafik için
+        },
+        "weekly_summary": {
+            "total_load":     round(sum(r.session_load for r in weekly_total), 1),
+            "session_count":  len(weekly_total),
+            "daily_breakdown": [
+                {"date": d, "load": round(v, 1)}
+                for d, v in sorted(week_by_day.items())
+            ],
+        },
+        "monthly_summary": {
+            "total_load":    round(sum(r.session_load for r in monthly_total), 1),
+            "session_count": len(monthly_total),
+        },
+        "hooper_trend": [
+            {**_row_wellness(r), "hooper_zone": _hooper_zone(r.hooper_index)}
+            for r in wellness_30
+        ],
+    }
