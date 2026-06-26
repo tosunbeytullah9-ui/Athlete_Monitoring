@@ -1,0 +1,27 @@
+{
+  "name": "@athleteiq/db",
+  "version": "0.0.1",
+  "private": true,
+  "exports": {
+    ".": "./index.ts",
+    "./types": "./types.ts",
+    "./queries": "./queries/index.ts",
+    "./queries/athletes": "./queries/athletes.ts",
+    "./queries/programs": "./queries/programs.ts",
+    "./queries/acwr": "./queries/acwr.ts",
+    "./queries/competitions": "./queries/competitions.ts",
+    "./queries/tests": "./queries/tests.ts",
+    "./queries/wearables": "./queries/wearables.ts",
+    "./queries/teams": "./queries/teams.ts",
+    "./queries/memberships": "./queries/memberships.ts"
+  },
+  "scripts": {
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0"
+  }
+}
