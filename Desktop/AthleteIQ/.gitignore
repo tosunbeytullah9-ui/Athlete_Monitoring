@@ -27,6 +27,14 @@ web-build/
 
 # Supabase
 .supabase/
+supabase/.temp/
+supabase/.branches/
+
+# TypeScript build cache
+*.tsbuildinfo
+
+# Logs
+error_log.txt
 
 # Testing
 coverage/
