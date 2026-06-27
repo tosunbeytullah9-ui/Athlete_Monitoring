@@ -1,5 +1,5 @@
 import { Tabs } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import { Calendar, Activity, Trophy, User } from "lucide-react-native";
 
 export default function TabsLayout() {
   return (
@@ -10,40 +10,53 @@ export default function TabsLayout() {
       }}
     >
       <Tabs.Screen
-        name="program"
+        name="program/index"
         options={{
           title: "Program",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="barbell-outline" size={size} color={color} />
+            <Calendar size={size} color={color} />
           ),
         }}
       />
       <Tabs.Screen
-        name="recovery"
+        name="recovery/index"
         options={{
           title: "Recovery",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="heart-outline" size={size} color={color} />
+            <Activity size={size} color={color} />
           ),
         }}
       />
       <Tabs.Screen
-        name="competitions"
+        name="competitions/index"
         options={{
           title: "Yarışmalar",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="trophy-outline" size={size} color={color} />
+            <Trophy size={size} color={color} />
           ),
         }}
       />
       <Tabs.Screen
-        name="profile"
+        name="profile/index"
         options={{
           title: "Profil",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person-outline" size={size} color={color} />
+            <User size={size} color={color} />
           ),
         }}
+      />
+      {/* Tab bar'da görünmeyecek alt sayfalar */}
+      <Tabs.Screen
+        name="program/[day]"
+        options={{ tabBarButton: () => null }}
+      />
+      <Tabs.Screen
+        name="profile/connect-whoop"
+        options={{ tabBarButton: () => null }}
+      />
+      <Tabs.Screen
+        name="profile/connect-polar"
+        options={{ tabBarButton: () => null }}
       />
     </Tabs>
   );

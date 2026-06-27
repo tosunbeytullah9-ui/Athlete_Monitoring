@@ -13,6 +13,7 @@ import {
   Settings,
   Shield,
   Activity,
+  Layers,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUserContext } from "@/lib/hooks/useUserContext";
@@ -20,6 +21,7 @@ import { useUserContext } from "@/lib/hooks/useUserContext";
 const navItems = [
   { href: "/athletes", label: "Sporcular", icon: Users },
   { href: "/programs", label: "Programlar", icon: ClipboardList },
+  { href: "/exercises", label: "Egzersizler", icon: Layers },
   { href: "/acwr", label: "ACWR", icon: BarChart2 },
   { href: "/competitions", label: "Yarışmalar", icon: Trophy },
   { href: "/tests", label: "Testler", icon: TestTube2 },

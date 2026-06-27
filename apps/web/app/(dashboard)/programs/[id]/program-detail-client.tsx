@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, CheckCircle2, Clock, Users, User, Send } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Clock, Users, User, Send, Pencil } from "lucide-react";
 import { Button } from "@athleteiq/ui/components/button";
 import { Badge } from "@athleteiq/ui/components/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@athleteiq/ui/components/card";
@@ -66,10 +66,14 @@ export function ProgramDetailClient({ program, athlete, team }: Props) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
+      <div className="flex items-center justify-between gap-4">
         <Button variant="ghost" size="sm" onClick={() => router.push("/programs")}>
           <ArrowLeft className="h-4 w-4" />
           Programlar
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => router.push(`/programs/${program.id}/edit`)}>
+          <Pencil className="h-4 w-4" />
+          Düzenle
         </Button>
       </div>
 

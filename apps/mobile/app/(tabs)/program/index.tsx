@@ -69,7 +69,10 @@ export default function ProgramScreen() {
   }, [athlete?.team_id]);
 
   useEffect(() => {
-    if (!athlete) return;
+    if (!athlete) {
+      setLoading(false);
+      return;
+    }
 
     fetchPrograms(athlete.id);
 

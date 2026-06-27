@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { Search, UserCircle2 } from "lucide-react";
 import { Input } from "@athleteiq/ui/components/input";
@@ -8,6 +8,8 @@ import { Badge } from "@athleteiq/ui/components/badge";
 import { Skeleton } from "@athleteiq/ui/components/skeleton";
 import { AddAthleteModal } from "@/components/features/athletes/add-athlete-modal";
 import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+import { toast } from "@/components/ui/use-toast";
 import type { Tables } from "@athleteiq/db/types";
 
 type Athlete = Tables<"athletes">;
@@ -31,6 +33,30 @@ export function AthletesClient({ athletes: initialAthletes, teams, orgId }: Prop
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [selectedTeam, setSelectedTeam] = useState<string>("all");
+
+  useEffect(() => {
+    const supabase = createClient();
+    const channel = supabase
+      .channel("program-updates-athletes")
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "training_programs",
+          filter: "is_published=eq.true",
+        },
+        () => {
+          router.refresh();
+          toast({ title: "Yeni program yayınlandı" });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [router]);
 
   const filtered = useMemo(() => {
     return initialAthletes.filter((a) => {

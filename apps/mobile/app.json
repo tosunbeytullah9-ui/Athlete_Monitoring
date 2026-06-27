@@ -4,40 +4,23 @@
     "slug": "athleteiq",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
     "scheme": "athleteiq",
     "userInterfaceStyle": "automatic",
-    "splash": {
-      "image": "./assets/images/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#1d4ed8"
-    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.athleteiq.app"
     },
     "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#1d4ed8"
-      },
       "package": "com.athleteiq.app"
     },
     "web": {
       "bundler": "metro",
-      "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "output": "static"
     },
     "plugins": [
       "expo-router",
       "expo-secure-store",
-      [
-        "expo-notifications",
-        {
-          "icon": "./assets/images/icon.png",
-          "color": "#1d4ed8"
-        }
-      ]
+      "expo-notifications"
     ],
     "experiments": {
       "typedRoutes": true

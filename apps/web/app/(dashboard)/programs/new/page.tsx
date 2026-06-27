@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { NewProgramClient } from "./new-program-client";
+import { getPlatformExercises, getOrgExercises, getOrgCategories } from "@athleteiq/db/queries/exercises";
 
 export default async function NewProgramPage() {
   const supabase = await createClient();
@@ -15,7 +16,7 @@ export default async function NewProgramPage() {
     );
   }
 
-  const [teamsResult, athletesResult] = await Promise.all([
+  const [teamsResult, athletesResult, platformExercises, orgExercises, categories] = await Promise.all([
     supabase.from("teams").select("id, name").eq("org_id", orgId).order("name"),
     supabase
       .from("athletes")
@@ -23,6 +24,9 @@ export default async function NewProgramPage() {
       .eq("org_id", orgId)
       .eq("is_active", true)
       .order("full_name"),
+    getPlatformExercises(supabase),
+    getOrgExercises(supabase, orgId),
+    getOrgCategories(supabase, orgId),
   ]);
 
   return (
@@ -30,6 +34,9 @@ export default async function NewProgramPage() {
       orgId={orgId}
       teams={teamsResult.data ?? []}
       athletes={athletesResult.data ?? []}
+      platformExercises={platformExercises}
+      orgExercises={orgExercises}
+      categories={categories}
     />
   );
 }

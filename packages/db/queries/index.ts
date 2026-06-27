@@ -6,3 +6,4 @@ export * from "./tests";
 export * from "./wearables";
 export * from "./teams";
 export * from "./memberships";
+export * from "./exercises";
