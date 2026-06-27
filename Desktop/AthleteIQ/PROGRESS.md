@@ -1,6 +1,7 @@
 # AthleteIQ — Proje Durumu
 
-> Son güncelleme: 2026-06-26 (egzersiz picker bug fix + program düzenleme eklendi)
+> Son güncelleme: 2026-06-27 (egzersiz kütüphanesi, süperset sistemi, program düzenleme, realtime push)
+> Son commit: `887fc36` — 2026-06-27
 > Bu dosya her session başında okunmalı. CLAUDE.md ile birlikte projenin hafızasıdır.
 
 ---
