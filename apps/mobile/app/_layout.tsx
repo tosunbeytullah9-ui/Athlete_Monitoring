@@ -1,15 +1,24 @@
 import "../global.css";
-import { Stack, useRouter, useSegments } from "expo-router";
+import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import type { Session } from "@supabase/supabase-js";
+
+interface AuthContextValue {
+  session: Session | null;
+  loading: boolean;
+}
+
+const AuthContext = createContext<AuthContextValue>({ session: null, loading: true });
+
+export function useAuth() {
+  return useContext(AuthContext);
+}
 
 export default function RootLayout() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const router = useRouter();
-  const segments = useSegments();
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -24,26 +33,14 @@ export default function RootLayout() {
     return () => listener.subscription.unsubscribe();
   }, []);
 
-  useEffect(() => {
-    if (loading) return;
-    const inAuthGroup = segments[0] === "(auth)";
-    if (!session && !inAuthGroup) {
-      router.replace("/(auth)/login");
-    } else if (session && inAuthGroup) {
-      router.replace("/(tabs)/program");
-    }
-  }, [session, loading, segments]);
-
-  if (loading) return null;
-
   return (
-    <>
+    <AuthContext.Provider value={{ session, loading }}>
       <StatusBar style="auto" />
       <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="(auth)" />
-        <Stack.Screen name="(tabs)" />
         <Stack.Screen name="index" />
+        <Stack.Screen name="(auth)/login" />
+        <Stack.Screen name="(tabs)" />
       </Stack>
-    </>
+    </AuthContext.Provider>
   );
 }
