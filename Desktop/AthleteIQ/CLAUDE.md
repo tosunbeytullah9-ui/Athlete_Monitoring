@@ -1044,3 +1044,49 @@ Proje, aşağıdakiler çalışır durumda olunca MVP sayılır:
 
 *Son güncelleme: Haziran 2026 — Beyto Tosun / AthleteIQ*
 *Bu dosya CLAUDE.md'dir. Claude Code bu dosyayı okuyarak çalışır.*
+
+---
+
+## 11. MEVCUT DURUM
+
+> Detaylı dosya listesi ve görev takibi için → **PROGRESS.md** (kök dizin)
+
+### Supabase Cloud
+- **Proje URL:** `https://nlmwcygmbbxmfpsubvmh.supabase.co`
+- **Project ID:** `nlmwcygmbbxmfpsubvmh`
+- **Migration durumu:** 001–004 arası 4 migration uygulandı, tüm tablolar aktif
+- **Edge Functions:** Lokal var (`invite-member`, `whoop-webhook`, `polar-sync`), cloud'a **henüz deploy edilmedi**
+
+### Env Dosyaları
+- Web: `apps/web/.env.local` — `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `RESEND_API_KEY`, WHOOP/Polar placeholders
+- Mobile: `apps/mobile/.env` — `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`
+
+### Test Kullanıcısı
+- **Email:** tosunbeytullah9@gmail.com | **Şifre:** AthleteIQ2026
+
+### Çalışan Özellikler (2026-06-26 itibarıyla)
+- ✅ Auth: login, magic link, invite kabul, middleware (role-based routing)
+- ✅ Sporcu yönetimi: listeleme, arama, ekleme, detay
+- ✅ Program yönetimi: oluşturma, listeleme, detay, publish
+- ✅ ACWR: log girişi + dashboard
+- ✅ Yarışma: ekleme + listeleme
+- ✅ Test sonuçları: ekleme + listeleme
+- ✅ Wearable altyapısı: tablolar + token saklama + normalize şema
+- ✅ Mobile: login, program, recovery, competitions, profile, wearable connect ekranları
+
+### Bekleyen Özellikler
+- ⏳ Edge Functions cloud deploy (davet e-postası çalışmıyor)
+- ⏳ Realtime aboneliği (program publish → sporcu anlık görsün)
+- ⏳ Seed verisi genişletme (şu an minimal: 1 org, 2 takım, 1 sporcu)
+- ⏳ Egzersiz kütüphanesi (005_exercises.sql)
+- ⏳ Program builder süperset sistemi
+- ⏳ Wearable aktif sync (WHOOP webhook + Polar transaction)
+- ⏳ RLS izolasyon testleri
+- ⏳ E2E Playwright testleri
+
+### Her Yeni Session Başında
+```
+1. CLAUDE.md § 11 oku → Supabase URL, env konumları, test kullanıcısı
+2. PROGRESS.md oku → Tamamlanan + bekleyen görevler
+3. Sıradaki göreve geç (PROGRESS.md "Öncelik 1" listesi)
+```

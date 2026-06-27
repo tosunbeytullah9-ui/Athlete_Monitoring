@@ -5,18 +5,22 @@ import { useRouter } from "next/navigation";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Trash2, ArrowLeft, ArrowRight, Check, BookOpen } from "lucide-react";
+import { Plus, Trash2, ArrowLeft, ArrowRight, Check, BookOpen, AlertTriangle } from "lucide-react";
 import { Button } from "@athleteiq/ui/components/button";
 import { Input } from "@athleteiq/ui/components/input";
 import { Label } from "@athleteiq/ui/components/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@athleteiq/ui/components/card";
 import { createClient } from "@/lib/supabase/client";
-import type { Database } from "@athleteiq/db/types";
+import { updateProgram } from "@athleteiq/db/queries/programs";
+import type { Database, Tables } from "@athleteiq/db/types";
 import { ExercisePickerModal } from "@/components/features/exercises/exercise-picker-modal";
 import type { PlatformExercise, OrgExercise, OrgExerciseCategory } from "@athleteiq/db/queries/exercises";
 
-type ProgramInsert = Database["public"]["Tables"]["training_programs"]["Insert"];
-type ProgramRow = Database["public"]["Tables"]["training_programs"]["Row"];
+type ProgramRow = Tables<"training_programs"> & {
+  training_sessions: (Tables<"training_sessions"> & {
+    exercises: Tables<"exercises">[];
+  })[];
+};
 type SessionInsert = Database["public"]["Tables"]["training_sessions"]["Insert"];
 type SessionRow = Database["public"]["Tables"]["training_sessions"]["Row"];
 type ExerciseInsert = Database["public"]["Tables"]["exercises"]["Insert"];
@@ -87,6 +91,7 @@ const programSchema = z.object({
 type ProgramForm = z.infer<typeof programSchema>;
 
 interface Props {
+  program: ProgramRow;
   orgId: string;
   teams: { id: string; name: string }[];
   athletes: { id: string; full_name: string; team_id: string }[];
@@ -97,8 +102,9 @@ interface Props {
 
 const STEPS = ["Temel Bilgiler", "Seanslar", "Özet"];
 
-export function NewProgramClient({
-  orgId,
+export function EditProgramClient({
+  program,
+  orgId: _orgId,
   teams,
   athletes,
   platformExercises = [],
@@ -109,6 +115,35 @@ export function NewProgramClient({
   const [step, setStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeSession, setActiveSession] = useState<number | null>(null);
+  const [unpublishWarning, setUnpublishWarning] = useState(false);
+
+  const defaultSessions = program.training_sessions
+    .slice()
+    .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0))
+    .map((s) => ({
+      day_of_week: s.day_of_week ?? 1,
+      session_type: (s.session_type as ProgramForm["sessions"][number]["session_type"]) ?? undefined,
+      title: s.title ?? undefined,
+      duration_min: s.duration_min ?? undefined,
+      exercises: s.exercises
+        .slice()
+        .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0))
+        .map((e) => {
+          const ex = e as typeof e & { superset_group?: string | null; superset_order?: number | null };
+          return {
+            name: ex.name,
+            category: ex.category ?? undefined,
+            sets: ex.sets ?? undefined,
+            reps: ex.reps ?? undefined,
+            load_kg: ex.load_kg ?? undefined,
+            rest_sec: ex.rest_sec ?? undefined,
+            unit: (ex.unit as ProgramForm["sessions"][number]["exercises"][number]["unit"]) ?? "kg",
+            notes: ex.notes ?? undefined,
+            superset_group: ex.superset_group ?? undefined,
+            superset_order: ex.superset_order ?? 0,
+          };
+        }),
+    }));
 
   const {
     register,
@@ -120,8 +155,16 @@ export function NewProgramClient({
   } = useForm<ProgramForm>({
     resolver: zodResolver(programSchema),
     defaultValues: {
-      scope: "team",
-      sessions: [],
+      title: program.title,
+      scope: program.team_id ? "team" : "athlete",
+      team_id: program.team_id ?? undefined,
+      athlete_id: program.athlete_id ?? undefined,
+      week_number: program.week_number ?? undefined,
+      start_date: program.start_date ?? undefined,
+      end_date: program.end_date ?? undefined,
+      phase: (program.phase as ProgramForm["phase"]) ?? undefined,
+      notes: program.notes ?? undefined,
+      sessions: defaultSessions,
     },
   });
 
@@ -154,8 +197,10 @@ export function NewProgramClient({
     try {
       const supabase = createClient();
 
-      const programPayload: ProgramInsert = {
-        org_id: orgId,
+      // Yayında olan program düzenlenince taslağa çek
+      const wasPublished = program.is_published;
+
+      await updateProgram(supabase, program.id, {
         title: data.title,
         team_id: data.scope === "team" ? (data.team_id ?? null) : null,
         athlete_id: data.scope === "athlete" ? (data.athlete_id ?? null) : null,
@@ -165,17 +210,13 @@ export function NewProgramClient({
         phase: data.phase ?? null,
         notes: data.notes ?? null,
         is_published: false,
-      };
+      });
 
-      const programBuilder = supabase.from("training_programs") as unknown as {
-        insert: (v: ProgramInsert) => { select: () => { single: () => Promise<{ data: ProgramRow | null; error: unknown }> } };
-      };
-      const { data: program, error: programError } = await programBuilder
-        .insert(programPayload)
-        .select()
-        .single();
-
-      if (programError || !program) throw programError;
+      // Mevcut seansları ve egzersizleri sil, yeniden oluştur
+      await supabase
+        .from("training_sessions")
+        .delete()
+        .eq("program_id", program.id);
 
       const sessionBuilder = supabase.from("training_sessions") as unknown as {
         insert: (v: SessionInsert) => { select: () => { single: () => Promise<{ data: SessionRow | null; error: unknown }> } };
@@ -224,20 +265,42 @@ export function NewProgramClient({
         }
       }
 
-      router.push(`/programs/${program.id}`);
+      if (wasPublished) {
+        setUnpublishWarning(true);
+      } else {
+        router.push(`/programs/${program.id}`);
+      }
     } finally {
       setIsSubmitting(false);
     }
   }
 
+  if (unpublishWarning) {
+    return (
+      <div className="max-w-md mx-auto mt-24 text-center space-y-4">
+        <div className="flex justify-center">
+          <AlertTriangle className="h-12 w-12 text-amber-500" />
+        </div>
+        <h2 className="text-xl font-semibold">Değişiklikler Kaydedildi</h2>
+        <p className="text-muted-foreground text-sm">
+          Program düzenlendiği için yayından kaldırıldı. Sporcuların görebilmesi için tekrar
+          yayınlamayı unutmayın.
+        </p>
+        <Button onClick={() => router.push(`/programs/${program.id}`)}>
+          Programa Dön
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="sm" onClick={() => router.push("/programs")}>
+        <Button variant="ghost" size="sm" onClick={() => router.push(`/programs/${program.id}`)}>
           <ArrowLeft className="h-4 w-4" />
-          Programlar
+          Programa Dön
         </Button>
-        <h1 className="text-2xl font-bold">Yeni Program Oluştur</h1>
+        <h1 className="text-2xl font-bold">Programı Düzenle</h1>
       </div>
 
       {/* Adım göstergesi */}
@@ -555,7 +618,7 @@ export function NewProgramClient({
         {step === 2 && (
           <Card>
             <CardHeader>
-              <CardTitle>Program Özeti</CardTitle>
+              <CardTitle>Değişiklikleri Kaydet</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               {(() => {
@@ -606,9 +669,15 @@ export function NewProgramClient({
                       </div>
                     )}
 
-                    <p className="text-xs text-muted-foreground border-t pt-3">
-                      Program taslak olarak kaydedilecek. Sporcular görmesi için "Yayınla" butonuna basın.
-                    </p>
+                    {program.is_published && (
+                      <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+                        <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                        <p className="text-xs">
+                          Bu program yayında. Kaydedilince taslağa çekilecek — sporcular tekrar
+                          yayınlayana kadar güncellenmiş halini göremez.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 );
               })()}
@@ -619,7 +688,7 @@ export function NewProgramClient({
                   Geri
                 </Button>
                 <Button type="submit" disabled={isSubmitting}>
-                  {isSubmitting ? "Kaydediliyor..." : "Programı Kaydet"}
+                  {isSubmitting ? "Kaydediliyor..." : "Değişiklikleri Kaydet"}
                 </Button>
               </div>
             </CardContent>
@@ -631,7 +700,7 @@ export function NewProgramClient({
 }
 
 // Egzersiz listesi alt bileşeni
-import type { UseFormRegister, Control, UseFormWatch, UseFormSetValue, FieldValues } from "react-hook-form";
+import type { UseFormRegister, Control, UseFormWatch, UseFormSetValue } from "react-hook-form";
 
 function ExerciseList({
   sessionIdx,
@@ -676,10 +745,8 @@ function ExerciseList({
     setValue(`sessions.${sessionIdx}.exercises.${exIdx}.superset_order`, group ? getNextGroupOrder(group) : 0);
   }
 
-  // Group exercises by superset for display
-  const groupedLabels: Record<number, string | null> = {};
-  const groupStartIndices = new Set<number>();
   const groupCounts: Record<string, number> = {};
+  const groupStartIndices = new Set<number>();
 
   for (const ex of exercises) {
     if (ex.superset_group) {

@@ -13,7 +13,8 @@
     "./queries/tests": "./queries/tests.ts",
     "./queries/wearables": "./queries/wearables.ts",
     "./queries/teams": "./queries/teams.ts",
-    "./queries/memberships": "./queries/memberships.ts"
+    "./queries/memberships": "./queries/memberships.ts",
+    "./queries/exercises": "./queries/exercises.ts"
   },
   "scripts": {
     "type-check": "tsc --noEmit"

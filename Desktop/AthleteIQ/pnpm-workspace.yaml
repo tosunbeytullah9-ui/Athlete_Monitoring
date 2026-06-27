@@ -1,3 +1,12 @@
 packages:
   - "apps/*"
   - "packages/*"
+
+overrides:
+  "@expo/dom-webview": "56.0.5"
+
+peerDependencyRules:
+  ignoreMissing:
+    - "@expo/dom-webview"
+  allowAny:
+    - "@expo/dom-webview"

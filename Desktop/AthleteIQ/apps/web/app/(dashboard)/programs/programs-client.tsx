@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Plus, CheckCircle2, Clock, Users, User } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
+import { toast } from "@/components/ui/use-toast";
 import { Button } from "@athleteiq/ui/components/button";
 import { Badge } from "@athleteiq/ui/components/badge";
 import { Card, CardContent } from "@athleteiq/ui/components/card";
@@ -38,6 +40,30 @@ const PHASE_COLORS: Record<string, string> = {
 export function ProgramsClient({ programs, teams, athletes }: Props) {
   const router = useRouter();
   const [filter, setFilter] = useState<"all" | "published" | "draft">("all");
+
+  useEffect(() => {
+    const supabase = createClient();
+    const channel = supabase
+      .channel("program-updates-programs")
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "training_programs",
+          filter: "is_published=eq.true",
+        },
+        () => {
+          router.refresh();
+          toast({ title: "Yeni program yayınlandı" });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [router]);
 
   const teamMap = useMemo(
     () => Object.fromEntries(teams.map((t) => [t.id, t.name])),
