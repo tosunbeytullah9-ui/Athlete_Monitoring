@@ -1,7 +1,7 @@
 # AthleteIQ — Proje Durumu
 
-> Son güncelleme: 2026-06-27 (egzersiz kütüphanesi, süperset sistemi, program düzenleme, realtime push)
-> Son commit: `887fc36` — 2026-06-27
+> Son güncelleme: 2026-06-28 (mobile navigation debug — çözülmedi)
+> Son commit: `171ad8a` — 2026-06-28
 > Bu dosya her session başında okunmalı. CLAUDE.md ile birlikte projenin hafızasıdır.
 
 ---
@@ -116,9 +116,10 @@
 | athlete_push_tokens | 0 |
 
 ### Edge Functions (Cloud'da Deploy Durumu)
-- **invite-member** → Lokal var, cloud'a deploy edilmedi
-- **whoop-webhook** → Lokal var, cloud'a deploy edilmedi
-- **polar-sync** → Lokal var, cloud'a deploy edilmedi
+- **invite-member** → ✅ Deploy edildi — `https://nlmwcygmbbxmfpsubvmh.supabase.co/functions/v1/invite-member`
+- **whoop-webhook** → ✅ Deploy edildi — `https://nlmwcygmbbxmfpsubvmh.supabase.co/functions/v1/whoop-webhook`
+- **polar-sync** → ✅ Deploy edildi — `https://nlmwcygmbbxmfpsubvmh.supabase.co/functions/v1/polar-sync`
+- **Secrets:** `NEXT_PUBLIC_APP_URL` set edildi. `RESEND_API_KEY` henüz placeholder — email göndermek için resend.com'dan key alınıp set edilmeli.
 
 ---
 
@@ -154,13 +155,17 @@ pnpm dev
 
 ## Bilinen Sorunlar
 
-1. **Edge Functions deploy edilmedi** — `supabase/functions/` altında 3 fonksiyon var ancak hiçbiri cloud'a deploy edilmedi. Davet sistemi şu an e-posta göndermez.
+1. **RESEND_API_KEY eksik** — Edge Functions deploy edildi ancak `RESEND_API_KEY` Supabase secret olarak set edilmedi. `resend.com`'dan key alınıp `supabase secrets set RESEND_API_KEY=re_xxx --project-ref nlmwcygmbbxmfpsubvmh` çalıştırılması gerekiyor. Bu yapılana kadar davet emaili gitmiyor ama membership kaydı oluşuyor.
 
 2. **Admin /dashboard yönlendirme** — Coach rolüyle giriş yapan kullanıcı `/dashboard`'a gitmeye çalışırsa `/athletes`'e yönlendiriliyor (middleware'de tanımlı, beklenen davranış). Ancak `/dashboard` doğrudan admin-only olarak işaretli, bu confusion yaratabilir.
 
 3. ~~**Realtime aboneliği**~~ — **Tamamlandı** (2026-06-26): `athletes-client.tsx` ve `programs-client.tsx`'e Supabase Realtime eklendi. `is_published=eq.true` filter ile UPDATE event gelince `router.refresh()` + toast notification tetikleniyor.
 
-4. **Mobile SDK versiyon** — Expo SDK 54 + React Native 0.81.5 yükseltmesi yapıldı, test bekleniyor.
+4. **🔴 Mobile NavigationContainer hatası — ÇÖZÜLMEDI** — Expo Router v6.0.24 + React Navigation v7.3.4 kombinasyonunda `"Couldn't find a navigation context"` hatası alınıyor. Birden fazla yaklaşım denendi, hiçbiri çalışmadı. Sonraki session'da kökten araştırılmalı. Mevcut durum:
+   - `_layout.tsx`: `AuthContext` + `Stack` (her zaman render ediyor, null döndürmüyor)
+   - `index.tsx`: `useEffect` + `router.replace` (navigation context hazır olmadan önce çalışıyor — `assertIsReady()` throw ediyor)
+   - `(auth)/_layout.tsx`: YOK (silindi — olunca başka sorun çıkıyor)
+   - **Öneri:** Expo Router v6 changelog'unu oku, `initialRouteName` pattern'i dene, ya da `expo-router` versiyonunu `~4.x` veya `~5.x`'e downgrade et
 
 5. ~~**Seed verisi yetersiz**~~ — **Tamamlandı** (2026-06-26): 2 yeni takım (Ritmik Takım, Trampolin Takım) ve 4 yeni sporcu eklendi. Toplam: 4 takım, 5 sporcu.
 
@@ -168,9 +173,17 @@ pnpm dev
 
 ## Sıradaki Görevler
 
+### Öncelik 0 — Blocker
+- [ ] 🔴 **Mobile NavigationContainer hatası** — Expo Router v6 + React Navigation v7 uyumsuzluğu. `router.replace` navigation ref hazır olmadan önce çağrılıyor. Çözüm denemeleri başarısız. Kökten araştır: Expo Router v6 migration guide, `initialRouteName`, ya da versiyon downgrade.
+
 ### Öncelik 1 — Kritik
-- [ ] Edge Functions cloud'a deploy et (`supabase functions deploy invite-member`)
-- [ ] Davet sistemini uçtan uca test et (email gerçekten gidiyor mu?)
+- [x] Edge Functions cloud'a deploy et (`supabase functions deploy invite-member`) ✅ (2026-06-27)
+- [ ] Davet sistemini uçtan uca test et (RESEND_API_KEY set edildikten sonra — email gidiyor mu?)
+  - ✅ `/auth/confirm/route.ts` oluşturuldu — `token_hash` doğrulama + membership upsert + metadata temizleme
+  - ✅ `invite-member` Edge Function güncellendi — `pending_*` metadata + `SITE_URL/auth/confirm` redirectTo
+  - ✅ `SITE_URL=http://localhost:3001` secret set edildi
+  - ✅ Edge Function yeniden deploy edildi
+  - ⚠️ Supabase Dashboard → Auth → URL Configuration → Redirect URLs'e ekle: `http://localhost:3001/auth/confirm` ve `http://localhost:3000/auth/confirm`
 - [x] Realtime aboneliğini web'e ekle (program publish → sporcu anlık görür) ✅
 - [x] Seed verisini genişlet (5 sporcu, 3 koç, gerçek veriler) ✅ (5 sporcu, koç ekleme bekliyor)
 
