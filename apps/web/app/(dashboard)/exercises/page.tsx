@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { getPlatformExercises, getOrgExercises, getOrgCategories } from "@athleteiq/db/queries/exercises";
 import { ExercisesClient } from "./exercises-client";
 
@@ -6,7 +7,6 @@ export default async function ExercisesPage() {
   const supabase = await createClient();
 
   const { data: { user } } = await supabase.auth.getUser();
-
   if (!user) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -15,13 +15,18 @@ export default async function ExercisesPage() {
     );
   }
 
-  const { data: membershipRaw } = await supabase
+  // Service role ile membership bul — cookie bağımsız
+  const admin = createServiceClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { persistSession: false } }
+  );
+
+  const { data: membership } = await admin
     .from("memberships")
     .select("org_id, role")
     .eq("user_id", user.id)
     .single();
-
-  const membership = membershipRaw as { org_id: string; role: string } | null;
 
   if (!membership?.org_id) {
     return (
@@ -31,17 +36,18 @@ export default async function ExercisesPage() {
     );
   }
 
+  // platform_exercises herkese açık, org verileri service role ile çek
   const [platformExercises, orgExercises, categories] = await Promise.all([
     getPlatformExercises(supabase),
-    getOrgExercises(supabase, membership.org_id),
-    getOrgCategories(supabase, membership.org_id),
+    admin.from("org_exercises").select("*").eq("org_id", membership.org_id).order("name"),
+    admin.from("org_exercise_categories").select("*").eq("org_id", membership.org_id).order("name"),
   ]);
 
   return (
     <ExercisesClient
       platformExercises={platformExercises}
-      orgExercises={orgExercises}
-      categories={categories}
+      orgExercises={(orgExercises.data ?? []) as Parameters<typeof ExercisesClient>[0]["orgExercises"]}
+      categories={(categories.data ?? []) as Parameters<typeof ExercisesClient>[0]["categories"]}
       orgId={membership.org_id}
       userId={user.id}
       userRole={membership.role}

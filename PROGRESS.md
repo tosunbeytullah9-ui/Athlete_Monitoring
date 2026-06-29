@@ -1,6 +1,6 @@
 # AthleteIQ — Proje Durumu
 
-> Son güncelleme: 2026-06-28 (mobile navigation debug — çözülmedi)
+> Son güncelleme: 2026-06-29 (self-serve signup + trial sistemi + landing page)
 > Son commit: `171ad8a` — 2026-06-28
 > Bu dosya her session başında okunmalı. CLAUDE.md ile birlikte projenin hafızasıdır.
 
@@ -9,6 +9,7 @@
 ## Tamamlanan Özellikler
 
 ### Veritabanı (Agent 1 — DB Agent) ✅
+- `supabase/migrations/007_trial.sql` — Trial sütunları (trial_ends_at, plan_status, owner_id) + `org_trial_status` view — **uygulandı** (2026-06-29)
 - `supabase/migrations/001_schema.sql` — Tüm core tablolar
 - `supabase/migrations/002_rls.sql` — Row Level Security politikaları
 - `supabase/migrations/003_functions.sql` — Helper fonksiyonlar (my_role, my_team_id, is_super_admin, calculate_acwr, get_athlete_programs)
@@ -18,6 +19,18 @@
 - `supabase/seed.sql` — Başlangıç test verisi
 - `packages/db/types.ts` — Supabase'den üretilmiş TypeScript tipleri
 - `packages/db/queries/` — athletes, programs, acwr, competitions, tests, wearables, teams, memberships, **exercises** sorguları
+
+### Self-Serve Signup & Trial Sistemi ✅ (2026-06-29)
+- `apps/web/app/(auth)/signup/page.tsx` + `signup-form.tsx` — 4 adımlı kayıt akışı (hesap → org → takım → tebrikler)
+- `apps/web/app/(marketing)/layout.tsx` — Marketing layout (nav + footer, sidebar yok)
+- `apps/web/app/(marketing)/page.tsx` — Landing page (hero, features, pricing, CTA)
+- `apps/web/app/(marketing)/demo/page.tsx` — Demo talep formu
+- `apps/web/app/api/demo-request/route.ts` — Demo talebi API (Resend ile email)
+- `apps/web/components/shared/trial-banner.tsx` — Trial banner (mavi/sarı/kırmızı durumlu)
+- `apps/web/components/shared/trial-banner-wrapper.tsx` — Server wrapper (cookie'den org_id okur)
+- `apps/web/app/(dashboard)/layout.tsx` — TrialBannerWrapper eklendi
+- `apps/web/middleware.ts` — `/signup`, `/demo` public route'lara eklendi
+- `apps/web/app/page.tsx` — Giriş yapılmamışsa landing page göster
 
 ### Kimlik Doğrulama (Agent 2 — Auth Agent) ✅
 - `apps/web/middleware.ts` — Route koruması + membership cookie cache (8 saat)
@@ -161,11 +174,10 @@ pnpm dev
 
 3. ~~**Realtime aboneliği**~~ — **Tamamlandı** (2026-06-26): `athletes-client.tsx` ve `programs-client.tsx`'e Supabase Realtime eklendi. `is_published=eq.true` filter ile UPDATE event gelince `router.refresh()` + toast notification tetikleniyor.
 
-4. **🔴 Mobile NavigationContainer hatası — ÇÖZÜLMEDI** — Expo Router v6.0.24 + React Navigation v7.3.4 kombinasyonunda `"Couldn't find a navigation context"` hatası alınıyor. Birden fazla yaklaşım denendi, hiçbiri çalışmadı. Sonraki session'da kökten araştırılmalı. Mevcut durum:
-   - `_layout.tsx`: `AuthContext` + `Stack` (her zaman render ediyor, null döndürmüyor)
-   - `index.tsx`: `useEffect` + `router.replace` (navigation context hazır olmadan önce çalışıyor — `assertIsReady()` throw ediyor)
-   - `(auth)/_layout.tsx`: YOK (silindi — olunca başka sorun çıkıyor)
-   - **Öneri:** Expo Router v6 changelog'unu oku, `initialRouteName` pattern'i dene, ya da `expo-router` versiyonunu `~4.x` veya `~5.x`'e downgrade et
+4. ~~**🔴 Mobile NavigationContainer hatası**~~ — **ÇÖZÜLDÜ** (2026-06-29):
+   - **Expo CLI `Body is unusable` bug:** `@expo/cli@54.0.25` cache layer'ı response body stream'ini iki kez tüketiyordu. Fix: `EXPO_NO_CACHE=1` + `cross-env` ile `package.json dev` script'ine eklendi.
+   - **Navigation context hatası:** `index.tsx`'teki `router.replace()` navigation ref hazır olmadan çalışıyordu. Fix: `<Redirect href="...">` component'ine çevrildi.
+   - **Bonus:** `(tabs)/_layout.tsx` Tabs.Screen name'leri `program/index` → `program` formatına düzeltildi. `program/` ve `profile/` klasörlerine nested `_layout.tsx` eklendi.
 
 5. ~~**Seed verisi yetersiz**~~ — **Tamamlandı** (2026-06-26): 2 yeni takım (Ritmik Takım, Trampolin Takım) ve 4 yeni sporcu eklendi. Toplam: 4 takım, 5 sporcu.
 
@@ -173,8 +185,12 @@ pnpm dev
 
 ## Sıradaki Görevler
 
-### Öncelik 0 — Blocker
-- [ ] 🔴 **Mobile NavigationContainer hatası** — Expo Router v6 + React Navigation v7 uyumsuzluğu. `router.replace` navigation ref hazır olmadan önce çağrılıyor. Çözüm denemeleri başarısız. Kökten araştır: Expo Router v6 migration guide, `initialRouteName`, ya da versiyon downgrade.
+### Öncelik 0 — Tamamlandı (2026-06-29)
+- [x] Self-serve signup akışı (4 adım) ✅
+- [x] Trial sistemi (007_trial.sql, org_trial_status view, TrialBanner) ✅
+- [x] Landing page + marketing layout ✅
+- [x] Demo talep formu ✅
+- [x] Login sayfasına "Hesap oluştur" linki ✅
 
 ### Öncelik 1 — Kritik
 - [x] Edge Functions cloud'a deploy et (`supabase functions deploy invite-member`) ✅ (2026-06-27)
@@ -213,7 +229,7 @@ pnpm dev
 ✅ Coach sporcu ekleyebilir
 ✅ Coach antrenman programı oluşturabilir
 ✅ Coach programı publish edebilir
-⏳ Athlete mobilde programı görebilir (realtime eksik)
+✅ Athlete mobilde programı görebilir (navigation çözüldü, realtime var)
 ✅ Athlete ACWR logu girebilir
 ✅ Coach ACWR dashboard'unu görebilir
 ✅ Yarışma eklenebilir

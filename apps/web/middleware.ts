@@ -2,8 +2,8 @@ import { createServerClient } from "@supabase/ssr";
 import type { CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_ROUTES = ["/login", "/auth/callback", "/auth/confirm"];
-const AUTH_ROUTES = ["/login"];
+const PUBLIC_ROUTES = ["/login", "/signup", "/demo", "/auth/callback", "/auth/confirm"];
+const AUTH_ROUTES = ["/login", "/signup"];
 
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
@@ -52,8 +52,12 @@ export async function middleware(request: NextRequest) {
     return supabaseResponse;
   }
 
-  // Giriş yapılmamışsa login'e yönlendir
+  // Giriş yapılmamışsa: "/" ise landing page, diğerleri login'e
   if (!user) {
+    if (pathname === "/") {
+      // Root page marketing layout'a geçiyor — geçir
+      return supabaseResponse;
+    }
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.searchParams.set("next", pathname);
