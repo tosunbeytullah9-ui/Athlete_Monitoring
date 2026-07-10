@@ -77,7 +77,7 @@ export default function LoginScreen() {
       <View className="flex-1 justify-center p-8">
         {/* Logo */}
         <View className="mb-10 items-center">
-          <View className="w-16 h-16 rounded-2xl bg-blue-700 items-center justify-center mb-4">
+          <View className="w-16 h-16 rounded-2xl items-center justify-center mb-4" style={{ backgroundColor: "#534AB7" }}>
             <Text className="text-white text-2xl font-black">A</Text>
           </View>
           <Text className="text-3xl font-black text-gray-900">AthleteIQ</Text>
@@ -108,7 +108,8 @@ export default function LoginScreen() {
               onChangeText={setPassword}
             />
             <TouchableOpacity
-              className="bg-blue-700 rounded-xl py-4 items-center"
+              className="rounded-xl py-4 items-center"
+              style={{ backgroundColor: "#534AB7" }}
               onPress={handlePasswordLogin}
               disabled={loading}
             >
@@ -125,7 +126,7 @@ export default function LoginScreen() {
               className="mt-4 items-center"
               onPress={() => setMode("magic")}
             >
-              <Text className="text-blue-700 text-sm">
+              <Text className="text-sm" style={{ color: "#534AB7" }}>
                 Şifresiz giriş (magic link)
               </Text>
             </TouchableOpacity>
@@ -135,7 +136,8 @@ export default function LoginScreen() {
         {mode === "magic" && (
           <>
             <TouchableOpacity
-              className="bg-blue-700 rounded-xl py-4 items-center mb-4"
+              className="rounded-xl py-4 items-center mb-4"
+              style={{ backgroundColor: "#534AB7" }}
               onPress={handleMagicLink}
               disabled={loading}
             >
@@ -152,7 +154,7 @@ export default function LoginScreen() {
               className="items-center"
               onPress={() => setMode("password")}
             >
-              <Text className="text-blue-700 text-sm">
+              <Text className="text-sm" style={{ color: "#534AB7" }}>
                 Şifre ile giriş yap
               </Text>
             </TouchableOpacity>

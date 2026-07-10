@@ -1,6 +1,6 @@
 # AthleteIQ — Proje Durumu
 
-> Son güncelleme: 2026-06-29 (self-serve signup + trial sistemi + landing page)
+> Son güncelleme: 2026-07-01 (Bug PARTİ 4 — Kozmetik + son temizlik: mobile realtime unpublish düzeltildi, landing layout import kokusu `MarketingShell`'e çıkarıldı, ölü yük kolonları program builder'a bağlandı (yük tipi seçici), PROGRESS.md/BUGS.md finalize. Envanter: 0 açık kod bug'ı.)
 > Son commit: `171ad8a` — 2026-06-28
 > Bu dosya her session başında okunmalı. CLAUDE.md ile birlikte projenin hafızasıdır.
 
@@ -22,8 +22,10 @@
 
 ### Self-Serve Signup & Trial Sistemi ✅ (2026-06-29)
 - `apps/web/app/(auth)/signup/page.tsx` + `signup-form.tsx` — 4 adımlı kayıt akışı (hesap → org → takım → tebrikler)
-- `apps/web/app/(marketing)/layout.tsx` — Marketing layout (nav + footer, sidebar yok)
-- `apps/web/app/(marketing)/page.tsx` — Landing page (hero, features, pricing, CTA)
+- `apps/web/components/shared/marketing-shell.tsx` — Paylaşılan marketing kabuğu (nav + footer). **PARTİ 4:** landing artık layout dosyasını component gibi import etmiyor; hem `(marketing)/layout.tsx` hem landing bu shell'i kullanıyor.
+- `apps/web/app/(marketing)/layout.tsx` — Next.js marketing layout (yalnızca `MarketingShell`'i render eder, sidebar yok)
+- `apps/web/app/page.tsx` — Kök route: giriş yoksa `LandingPage` render eder, girişte role'e göre yönlendirir
+- `apps/web/components/features/landing/landing-page.tsx` — Landing page içeriği (hero, features, pricing, CTA) — `MarketingShell` ile sarılı
 - `apps/web/app/(marketing)/demo/page.tsx` — Demo talep formu
 - `apps/web/app/api/demo-request/route.ts` — Demo talebi API (Resend ile email)
 - `apps/web/components/shared/trial-banner.tsx` — Trial banner (mavi/sarı/kırmızı durumlu)
@@ -33,7 +35,8 @@
 - `apps/web/app/page.tsx` — Giriş yapılmamışsa landing page göster
 
 ### Kimlik Doğrulama (Agent 2 — Auth Agent) ✅
-- `apps/web/middleware.ts` — Route koruması + membership cookie cache (8 saat)
+- `apps/web/middleware.ts` — Route koruması + membership cookie cache (8 saat, `aiq_uid` ile kullanıcıya bağlı — bayat rol miras etmez). **LOGOUT GUARD FIX (2026-07-01):** athlete rol guard'ına `/auth/*` muafiyeti eklendi — auth route'ları (`/auth/logout`, `/auth/confirm`, `/auth/callback`) rol redirect'inden muaf. Parti 1'in yan etkisi olarak athlete `/auth/logout`'a gidince `/programs`'a geri atılıyordu (çıkış yapamıyordu); artık logout çalışıyor.
+- `apps/web/app/auth/logout/route.ts` — Server-side logout (signOut + httpOnly aiq_* cookie temizliği)
 - `apps/web/lib/supabase/client.ts` — Client component Supabase client
 - `apps/web/lib/supabase/server.ts` — Server component Supabase client
 - `apps/web/lib/hooks/useUserContext.ts` — Role + org + team hook
@@ -46,11 +49,11 @@
 ### Web Paneli (Agent 3 — Web Agent) ✅
 - `apps/web/app/(dashboard)/layout.tsx` — Sidebar + header layout
 - `apps/web/app/(dashboard)/athletes/` — Sporcu listesi (arama, filtre) + detay sayfası
-- `apps/web/app/(dashboard)/programs/` — Program listesi, yeni program oluşturma, program detay, program düzenleme (`[id]/edit/`)
+- `apps/web/app/(dashboard)/programs/` — Program listesi, yeni program oluşturma, program detay, program düzenleme (`[id]/edit/`). **PARTİ 4:** egzersiz satırlarına yük tipi seçici (kg / %1RM / RPE → `load_type`/`load_kg`/`load_percent_1rm`/`rpe_target`) eklendi; new + edit builder + detay görünümü eşitlendi (edit delete-reinsert yaptığından veriyi korur).
 - `apps/web/app/(dashboard)/acwr/` — ACWR dashboard
 - `apps/web/app/(dashboard)/competitions/` — Yarışma listesi
-- `apps/web/app/(dashboard)/tests/` — Test sonuçları
-- `apps/web/app/(dashboard)/wearables/` — Wearable bağlantı durumu
+- `apps/web/app/(dashboard)/tests/` — Test sonuçları (server + `tests-client.tsx`, atletik performans CRUD: 7 kategori/31 test tipi, kademeli dropdown, trend kolonu, filtreler) ✅ gerçekten tamamlandı (2026-07-01, Bug Partİ 2)
+- `apps/web/app/(dashboard)/wearables/` — Wearable bağlantı durumu (server + `wearables-client.tsx`, 3 özet kartı, durum tablosu, filtreler; "Bağla" disabled — entegrasyon yakında) ✅ gerçekten tamamlandı (2026-07-01, Bug Partİ 2)
 - `apps/web/app/(dashboard)/settings/` — Org ayarları (admin only)
 - `apps/web/app/(dashboard)/exercises/` — Egzersiz kütüphanesi (platform + org, tam CRUD)
 - `apps/web/app/admin/` — Super admin paneli
@@ -101,8 +104,13 @@
 | 002 | rls | ✅ Uygulandı |
 | 003 | functions | ✅ Uygulandı |
 | 004 | wearables | ✅ Uygulandı |
-| 005 | exercises | ✅ Uygulandı |
+| 005 | exercises | ✅ Uygulandı (superset_group/order kolonları burada) |
 | 006 | exercise_seed | ✅ Uygulandı |
+| 008 | rls_signup | ✅ Uygulandı |
+| 009 | security_fixes | ✅ Uygulandı |
+| 010 | trial | ✅ Uygulandı (eski `007_trial.sql`, PARTİ 3'te yeniden adlandırıldı) |
+
+> **PARTİ 3 not:** `007_superset_columns.sql` silindi (005 zaten kapsıyor). Local dosya adları cloud geçmişindeki timestamp-prefix'lerle sapmıştı — kullanıcı onayıyla `supabase migration repair` çalıştırıldı (6 timestamp `reverted`, local 005/006/008/009/010 `applied`). `migration list` artık tam hizalı (Local = Remote). Şema tarafında etki yok.
 
 ### Mevcut Tablolar (RLS aktif, tüm tablolarda)
 | Tablo | Satır Sayısı |
@@ -139,7 +147,7 @@
 ## Ortam Bilgisi
 
 - **Node:** 24
-- **pnpm:** 11.9
+- **pnpm:** 11.9 (global binary). `package.json` `packageManager` artık `pnpm@11.9.0` ile hizalı. **ÖNEMLİ:** pnpm 11'de `overrides`, `onlyBuiltDependencies` ve `peerDependencyRules` ayarları `pnpm-workspace.yaml`'a taşındı — `package.json`'daki `pnpm` alanı artık okunmuyor. `@types/react` 19.2.17 / `@types/react-dom` 19.2.3 override'ı yaml'da sabit (çift `@types/react` TS2322 çözüldü). `pnpm install` build-script onayı için `onlyBuiltDependencies` (esbuild/sharp/unrs-resolver) kullanır.
 - **Supabase Cloud URL:** `https://nlmwcygmbbxmfpsubvmh.supabase.co`
 
 ### Başlatma Komutları
@@ -154,6 +162,10 @@ pnpm --filter="@athleteiq/mobile" exec expo start --clear
 
 # Tüm uygulamalar
 pnpm dev
+
+# Lint (PARTİ 3'te kuruldu — ESLint flat config)
+pnpm lint                              # turbo lint (tüm paketler)
+pnpm --filter="@athleteiq/web" exec eslint .   # yalnızca web (0 error, 21 warning)
 ```
 
 ### Env Dosyaları

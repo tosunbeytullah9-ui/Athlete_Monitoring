@@ -76,15 +76,16 @@ Deno.serve(async (req: Request) => {
     }
 
     // Kullanıcıyı davet et (zaten varsa da çalışır)
+    // pending_* prefix: /auth/confirm callback'i membership oluştururken okur
     const { data: inviteData, error: inviteError } =
       await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
         data: {
-          org_id,
-          role,
-          team_id: team_id ?? null,
+          pending_org_id: org_id,
+          pending_role: role,
+          pending_team_id: team_id ?? null,
           invited: true,
         },
-        redirectTo: `${Deno.env.get("NEXT_PUBLIC_APP_URL")}/invite/accept`,
+        redirectTo: `${Deno.env.get("SITE_URL")}/auth/confirm`,
       });
 
     if (inviteError) {

@@ -16,22 +16,22 @@ import { createClient } from "@/lib/supabase/client";
 import { toast } from "@/components/ui/use-toast";
 
 const MOVEMENT_PATTERNS: { value: string; label: string }[] = [
-  { value: "horizontal_push", label: "Yatay İtiş" },
-  { value: "vertical_push", label: "Dikey İtiş" },
-  { value: "horizontal_pull", label: "Yatay Çekiş" },
-  { value: "vertical_pull", label: "Dikey Çekiş" },
-  { value: "hip_hinge_bilateral", label: "Kalça Menteşe (İki Bacak)" },
-  { value: "hip_hinge_unilateral", label: "Kalça Menteşe (Tek Bacak)" },
-  { value: "knee_dominant_bilateral", label: "Diz Dominant (İki Bacak)" },
-  { value: "knee_dominant_unilateral", label: "Diz Dominant (Tek Bacak)" },
-  { value: "rotation", label: "Rotasyon" },
-  { value: "anti_rotation", label: "Anti-Rotasyon" },
-  { value: "jump_land", label: "Zıplama / İniş" },
-  { value: "locomotion", label: "Hareket / Koşu" },
-  { value: "core_stability", label: "Core Stabilitesi" },
-  { value: "loaded_carry", label: "Yüklü Taşıma" },
-  { value: "sport_specific", label: "Spora Özgü" },
-  { value: "mobility_flexibility", label: "Mobilite / Esneklik" },
+  { value: "horizontal_push", label: "Horizontal Push" },
+  { value: "vertical_push", label: "Vertical Push" },
+  { value: "horizontal_pull", label: "Horizontal Pull" },
+  { value: "vertical_pull", label: "Vertical Pull" },
+  { value: "hip_hinge_bilateral", label: "Hip Hinge (Bilateral)" },
+  { value: "hip_hinge_unilateral", label: "Hip Hinge (Unilateral)" },
+  { value: "knee_dominant_bilateral", label: "Knee Dominant (Bilateral)" },
+  { value: "knee_dominant_unilateral", label: "Knee Dominant (Unilateral)" },
+  { value: "rotation", label: "Rotation" },
+  { value: "anti_rotation", label: "Anti-Rotation" },
+  { value: "jump_land", label: "Jump & Land" },
+  { value: "locomotion", label: "Locomotion" },
+  { value: "core_stability", label: "Core Stability" },
+  { value: "loaded_carry", label: "Loaded Carry" },
+  { value: "sport_specific", label: "Sport Specific" },
+  { value: "mobility_flexibility", label: "Mobility & Flexibility" },
 ];
 
 const DIFFICULTY_LABELS: Record<string, { label: string; color: string }> = {
@@ -321,9 +321,9 @@ export function ExercisesClient({
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
-                      <p className="font-semibold text-sm truncate">{ex.name_tr ?? ex.name}</p>
-                      {ex.name_tr && (
-                        <p className="text-xs text-muted-foreground truncate">{ex.name}</p>
+                      <p className="font-semibold text-sm truncate">{ex.name}</p>
+                      {ex.name_tr && ex.name_tr !== ex.name && (
+                        <p className="text-xs text-muted-foreground truncate">({ex.name_tr})</p>
                       )}
                     </div>
                     <div className="flex items-center gap-1 shrink-0">

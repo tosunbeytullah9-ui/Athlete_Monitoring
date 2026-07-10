@@ -1,10 +1,10 @@
-import MarketingLayout from "@/app/(marketing)/layout";
+import { MarketingShell } from "@/components/shared/marketing-shell";
 
 export function LandingPage() {
   return (
-    <MarketingLayout>
+    <MarketingShell>
       <LandingContent />
-    </MarketingLayout>
+    </MarketingShell>
   );
 }
 

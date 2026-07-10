@@ -1,3 +1,36 @@
-export default function TestResultsPage() {
-  return <h1 className="text-2xl font-bold">Test Sonuçları</h1>;
+import { cookies } from "next/headers";
+import { createClient } from "@/lib/supabase/server";
+import { getTests } from "@athleteiq/db/queries/tests";
+import { TestsClient, type TestRow } from "./tests-client";
+
+export default async function TestResultsPage() {
+  const supabase = await createClient();
+  const cookieStore = await cookies();
+  const orgId = cookieStore.get("aiq_org_id")?.value;
+
+  if (!orgId) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <p className="text-muted-foreground">Organizasyon bulunamadı.</p>
+      </div>
+    );
+  }
+
+  const [tests, athletesResult] = await Promise.all([
+    getTests(supabase, orgId),
+    supabase
+      .from("athletes")
+      .select("id, full_name")
+      .eq("org_id", orgId)
+      .eq("is_active", true)
+      .order("full_name"),
+  ]);
+
+  return (
+    <TestsClient
+      orgId={orgId}
+      tests={(tests ?? []) as TestRow[]}
+      athletes={athletesResult.data ?? []}
+    />
+  );
 }

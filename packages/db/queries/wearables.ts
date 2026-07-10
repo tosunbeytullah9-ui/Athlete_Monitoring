@@ -88,3 +88,31 @@ export async function upsertWearableMetrics(
   if (error) throw error;
   return data;
 }
+
+export interface WearableConnectionRow {
+  athlete_id: string;
+  provider: string;
+  is_active: boolean | null;
+  last_synced_at: string | null;
+}
+
+// Org'daki tüm aktif wearable bağlantılarını çek (durum görüntüleme için).
+// athletes!inner ile RLS org/team izolasyonunu uygular.
+export async function getWearableConnections(
+  client: DbClient,
+  orgId: string
+): Promise<WearableConnectionRow[]> {
+  const { data, error } = await client
+    .from("wearable_connections")
+    .select("athlete_id, provider, is_active, last_synced_at, athletes!inner(org_id)")
+    .eq("athletes.org_id", orgId)
+    .eq("is_active", true);
+
+  if (error) throw error;
+  return (data ?? []).map((r: Record<string, unknown>) => ({
+    athlete_id: r.athlete_id as string,
+    provider: r.provider as string,
+    is_active: r.is_active as boolean | null,
+    last_synced_at: r.last_synced_at as string | null,
+  }));
+}

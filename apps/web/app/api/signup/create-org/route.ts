@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
+import type { Database } from "@athleteiq/db/types";
 
 export async function POST(request: NextRequest) {
   const body = await request.json() as {
@@ -20,7 +21,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Oturum bilgisi eksik" }, { status: 401 });
   }
 
-  const admin = createServiceClient(
+  const admin = createServiceClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     { auth: { persistSession: false } }
@@ -34,8 +35,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Org oluştur
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: org, error: orgError } = await (admin as any)
+  const { data: org, error: orgError } = await admin
     .from("organizations")
     .insert({
       name: orgName.trim(),
@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
       owner_id: user.id,
     })
     .select("id")
-    .single() as { data: { id: string } | null; error: { code: string; message: string } | null };
+    .single();
 
   if (orgError || !org) {
     if (orgError?.code === "23505") {

@@ -18,20 +18,31 @@ import {
 import { cn } from "@/lib/utils";
 import { useUserContext } from "@/lib/hooks/useUserContext";
 
-const navItems = [
-  { href: "/athletes", label: "Sporcular", icon: Users },
-  { href: "/programs", label: "Programlar", icon: ClipboardList },
-  { href: "/exercises", label: "Egzersizler", icon: Layers },
-  { href: "/acwr", label: "ACWR", icon: BarChart2 },
-  { href: "/competitions", label: "Yarışmalar", icon: Trophy },
-  { href: "/tests", label: "Testler", icon: TestTube2 },
-  { href: "/wearables", label: "Wearable", icon: Watch },
-  { href: "/settings", label: "Ayarlar", icon: Settings },
+type Role = "admin" | "coach" | "athlete";
+
+const navItems: {
+  href: string;
+  label: string;
+  icon: typeof Users;
+  roles: Role[];
+}[] = [
+  { href: "/athletes", label: "Sporcular", icon: Users, roles: ["admin", "coach"] },
+  { href: "/programs", label: "Programlar", icon: ClipboardList, roles: ["admin", "coach", "athlete"] },
+  { href: "/exercises", label: "Egzersizler", icon: Layers, roles: ["admin", "coach"] },
+  { href: "/acwr", label: "ACWR", icon: BarChart2, roles: ["admin", "coach"] },
+  { href: "/competitions", label: "Yarışmalar", icon: Trophy, roles: ["admin", "coach"] },
+  { href: "/tests", label: "Testler", icon: TestTube2, roles: ["admin", "coach"] },
+  { href: "/wearables", label: "Wearable", icon: Watch, roles: ["admin", "coach"] },
+  { href: "/settings", label: "Ayarlar", icon: Settings, roles: ["admin"] },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { isSuperAdmin } = useUserContext();
+  const { role, isSuperAdmin } = useUserContext();
+
+  const visibleItems = navItems.filter(
+    (item) => role && item.roles.includes(role)
+  );
 
   return (
     <aside className="flex h-screen w-64 flex-col border-r bg-card">
@@ -42,7 +53,7 @@ export function Sidebar() {
 
       <nav className="flex-1 overflow-y-auto px-3 py-4">
         <ul className="space-y-1">
-          {navItems.map(({ href, label, icon: Icon }) => (
+          {visibleItems.map(({ href, label, icon: Icon }) => (
             <li key={href}>
               <Link
                 href={href}

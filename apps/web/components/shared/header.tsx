@@ -1,9 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { LogOut, User } from "lucide-react";
 import { Button } from "@athleteiq/ui/components/button";
-import { createClient } from "@/lib/supabase/client";
 import { useUserContext } from "@/lib/hooks/useUserContext";
 
 const ROLE_LABELS: Record<string, string> = {
@@ -13,13 +11,20 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 export function Header() {
-  const router = useRouter();
   const { user, role } = useUserContext();
 
   async function handleSignOut() {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    router.push("/login");
+    // Server-side logout: hem Supabase oturumunu hem httpOnly aiq_* cookie'lerini
+    // temizler. Ardından hard navigation ile temiz bir istek yapılır. finally ile
+    // fetch hata verse bile kullanıcı login'e yönlendirilir.
+    try {
+      const res = await fetch("/auth/logout", { method: "POST" });
+      console.log("Logout:", res.status);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      window.location.href = "/login";
+    }
   }
 
   return (

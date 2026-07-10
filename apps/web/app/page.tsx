@@ -51,7 +51,7 @@ function redirectByRole(role: string): never {
     case "coach":
       redirect("/athletes");
     case "athlete":
-      redirect("/program");
+      redirect("/programs");
     default:
       redirect("/login");
   }

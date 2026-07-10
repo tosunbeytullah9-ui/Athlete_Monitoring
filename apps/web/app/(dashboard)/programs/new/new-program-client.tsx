@@ -15,11 +15,8 @@ import type { Database } from "@athleteiq/db/types";
 import { ExercisePickerModal } from "@/components/features/exercises/exercise-picker-modal";
 import type { PlatformExercise, OrgExercise, OrgExerciseCategory } from "@athleteiq/db/queries/exercises";
 
-type ProgramInsert = Database["public"]["Tables"]["training_programs"]["Insert"];
 type ProgramRow = Database["public"]["Tables"]["training_programs"]["Row"];
-type SessionInsert = Database["public"]["Tables"]["training_sessions"]["Insert"];
 type SessionRow = Database["public"]["Tables"]["training_sessions"]["Row"];
-type ExerciseInsert = Database["public"]["Tables"]["exercises"]["Insert"];
 
 const DAY_LABELS = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
 
@@ -50,12 +47,21 @@ const SUPERSET_COLORS: Record<string, string> = {
   G: "border-l-yellow-500",
 };
 
+const LOAD_TYPES = [
+  { value: "absolute_kg", label: "kg", inputLabel: "Yük (kg)" },
+  { value: "percentage_1rm", label: "%1RM", inputLabel: "1RM %" },
+  { value: "rpe", label: "RPE", inputLabel: "RPE" },
+] as const;
+
 const exerciseSchema = z.object({
   name: z.string().min(1, "Egzersiz adı gerekli"),
   category: z.string().optional(),
   sets: z.number().int().positive().optional().or(z.literal(undefined)),
   reps: z.number().int().positive().optional().or(z.literal(undefined)),
+  load_type: z.enum(["absolute_kg", "percentage_1rm", "rpe"]).default("absolute_kg"),
   load_kg: z.number().positive().optional().or(z.literal(undefined)),
+  load_percent_1rm: z.number().positive().max(100).optional().or(z.literal(undefined)),
+  rpe_target: z.number().min(0).max(10).optional().or(z.literal(undefined)),
   rest_sec: z.number().int().positive().optional().or(z.literal(undefined)),
   unit: z.enum(["kg", "lb", "%", "bodyweight"]).default("kg"),
   notes: z.string().optional(),
@@ -154,77 +160,79 @@ export function NewProgramClient({
     try {
       const supabase = createClient();
 
-      const programPayload: ProgramInsert = {
-        org_id: orgId,
-        title: data.title,
-        team_id: data.scope === "team" ? (data.team_id ?? null) : null,
-        athlete_id: data.scope === "athlete" ? (data.athlete_id ?? null) : null,
-        week_number: data.week_number ?? null,
-        start_date: data.start_date ?? null,
-        end_date: data.end_date ?? null,
-        phase: data.phase ?? null,
-        notes: data.notes ?? null,
-        is_published: false,
-      };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const db = supabase as any;
 
-      const programBuilder = supabase.from("training_programs") as unknown as {
-        insert: (v: ProgramInsert) => { select: () => { single: () => Promise<{ data: ProgramRow | null; error: unknown }> } };
-      };
-      const { data: program, error: programError } = await programBuilder
-        .insert(programPayload)
+      const { data: program, error: programError } = (await db
+        .from("training_programs")
+        .insert({
+          org_id: orgId,
+          title: data.title,
+          team_id: data.scope === "team" ? (data.team_id ?? null) : null,
+          athlete_id: data.scope === "athlete" ? (data.athlete_id ?? null) : null,
+          week_number: data.week_number ?? null,
+          start_date: data.start_date ?? null,
+          end_date: data.end_date ?? null,
+          phase: data.phase ?? null,
+          notes: data.notes ?? null,
+          is_published: false,
+        })
         .select()
-        .single();
+        .single()) as { data: ProgramRow | null; error: { message: string } | null };
 
-      if (programError || !program) throw programError;
-
-      const sessionBuilder = supabase.from("training_sessions") as unknown as {
-        insert: (v: SessionInsert) => { select: () => { single: () => Promise<{ data: SessionRow | null; error: unknown }> } };
-      };
-
-      const exerciseBuilder = supabase.from("exercises") as unknown as {
-        insert: (v: ExerciseInsert[]) => Promise<{ error: unknown }>;
-      };
+      if (programError) throw new Error(programError.message);
+      if (!program) throw new Error("Program oluşturulamadı");
 
       for (let i = 0; i < data.sessions.length; i++) {
         const session = data.sessions[i]!;
-        const sessionPayload: SessionInsert = {
-          program_id: program.id,
-          day_of_week: session.day_of_week,
-          session_type: session.session_type ?? null,
-          title: session.title ?? null,
-          duration_min: session.duration_min ?? null,
-          order_index: i,
-        };
 
-        const { data: dbSession, error: sessionError } = await sessionBuilder
-          .insert(sessionPayload)
+        const { data: dbSession, error: sessionError } = (await db
+          .from("training_sessions")
+          .insert({
+            program_id: program.id,
+            day_of_week: session.day_of_week,
+            session_type: session.session_type ?? null,
+            title: session.title ?? null,
+            duration_min: session.duration_min ?? null,
+            order_index: i,
+          })
           .select()
-          .single();
+          .single()) as { data: SessionRow | null; error: { message: string } | null };
 
-        if (sessionError || !dbSession) throw sessionError;
+        if (sessionError) throw new Error(sessionError.message);
+        if (!dbSession) throw new Error("Seans oluşturulamadı");
 
         if (session.exercises.length > 0) {
-          const exercisesPayload: ExerciseInsert[] = session.exercises.map((ex, idx) => ({
-            session_id: dbSession.id,
-            name: ex.name,
-            category: ex.category ?? null,
-            sets: ex.sets ?? null,
-            reps: ex.reps ?? null,
-            load_kg: ex.load_kg ?? null,
-            rest_sec: ex.rest_sec ?? null,
-            unit: ex.unit,
-            notes: ex.notes ?? null,
-            order_index: idx,
-            superset_group: ex.superset_group ?? null,
-            superset_order: ex.superset_order ?? 0,
-          }));
-
-          const { error: exError } = await exerciseBuilder.insert(exercisesPayload);
-          if (exError) throw exError;
+          const { error: exError } = (await db
+            .from("exercises")
+            .insert(
+              session.exercises.map((ex, idx) => ({
+                session_id: dbSession.id,
+                name: ex.name,
+                category: ex.category ?? null,
+                sets: ex.sets ?? null,
+                reps: ex.reps ?? null,
+                load_type: ex.load_type ?? "absolute_kg",
+                load_kg: ex.load_type === "absolute_kg" ? (ex.load_kg ?? null) : null,
+                load_percent_1rm:
+                  ex.load_type === "percentage_1rm" ? (ex.load_percent_1rm ?? null) : null,
+                rpe_target: ex.load_type === "rpe" ? (ex.rpe_target ?? null) : null,
+                rest_sec: ex.rest_sec ?? null,
+                unit: ex.unit,
+                notes: ex.notes ?? null,
+                order_index: idx,
+                superset_group: ex.superset_group ?? null,
+                superset_order: ex.superset_order ?? 0,
+              }))
+            )) as { error: { message: string } | null };
+          if (exError) throw new Error(exError.message);
         }
       }
 
       router.push(`/programs/${program.id}`);
+    } catch (error) {
+      console.error("Program kayıt hatası:", error);
+      alert(`Hata: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -607,7 +615,7 @@ export function NewProgramClient({
                     )}
 
                     <p className="text-xs text-muted-foreground border-t pt-3">
-                      Program taslak olarak kaydedilecek. Sporcular görmesi için "Yayınla" butonuna basın.
+                      Program taslak olarak kaydedilecek. Sporcular görmesi için &quot;Yayınla&quot; butonuna basın.
                     </p>
                   </div>
                 );
@@ -720,6 +728,7 @@ function ExerciseList({
               append({
                 name: "",
                 unit: "kg",
+                load_type: "absolute_kg",
                 superset_group: undefined,
                 superset_order: 0,
               })
@@ -763,6 +772,17 @@ function ExerciseList({
                         className="text-sm"
                       />
                     </div>
+                    <select
+                      {...register(`sessions.${sessionIdx}.exercises.${exIdx}.load_type`)}
+                      className="flex h-9 w-24 shrink-0 rounded-md border border-input bg-background px-2 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                      title="Yük tipi"
+                    >
+                      {LOAD_TYPES.map((lt) => (
+                        <option key={lt.value} value={lt.value}>
+                          {lt.label}
+                        </option>
+                      ))}
+                    </select>
                     <select
                       value={group}
                       onChange={(e) => handleGroupChange(exIdx, e.target.value)}
@@ -809,18 +829,51 @@ function ExerciseList({
                         className="text-sm h-8"
                       />
                     </div>
-                    <div>
-                      <Label className="text-xs">Yük (kg)</Label>
-                      <Input
-                        type="number"
-                        step="0.5"
-                        {...register(`sessions.${sessionIdx}.exercises.${exIdx}.load_kg`, {
-                          valueAsNumber: true,
-                        })}
-                        placeholder="80"
-                        className="text-sm h-8"
-                      />
-                    </div>
+                    {(ex?.load_type ?? "absolute_kg") === "percentage_1rm" ? (
+                      <div>
+                        <Label className="text-xs">1RM %</Label>
+                        <Input
+                          type="number"
+                          step="1"
+                          min={0}
+                          max={100}
+                          {...register(
+                            `sessions.${sessionIdx}.exercises.${exIdx}.load_percent_1rm`,
+                            { valueAsNumber: true }
+                          )}
+                          placeholder="75"
+                          className="text-sm h-8"
+                        />
+                      </div>
+                    ) : (ex?.load_type ?? "absolute_kg") === "rpe" ? (
+                      <div>
+                        <Label className="text-xs">RPE</Label>
+                        <Input
+                          type="number"
+                          step="0.5"
+                          min={0}
+                          max={10}
+                          {...register(`sessions.${sessionIdx}.exercises.${exIdx}.rpe_target`, {
+                            valueAsNumber: true,
+                          })}
+                          placeholder="8"
+                          className="text-sm h-8"
+                        />
+                      </div>
+                    ) : (
+                      <div>
+                        <Label className="text-xs">Yük (kg)</Label>
+                        <Input
+                          type="number"
+                          step="0.5"
+                          {...register(`sessions.${sessionIdx}.exercises.${exIdx}.load_kg`, {
+                            valueAsNumber: true,
+                          })}
+                          placeholder="80"
+                          className="text-sm h-8"
+                        />
+                      </div>
+                    )}
                     <div>
                       <Label className="text-xs">Dinlenme (s)</Label>
                       <Input
@@ -857,6 +910,7 @@ function ExerciseList({
               name: picked.name,
               category: picked.category,
               unit: "kg",
+              load_type: "absolute_kg",
               superset_group: undefined,
               superset_order: 0,
             });

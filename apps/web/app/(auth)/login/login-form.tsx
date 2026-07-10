@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { loginSchema, magicLinkSchema } from "@athleteiq/validators";
 import type { LoginInput, MagicLinkInput } from "@athleteiq/validators";
@@ -11,13 +11,13 @@ import type { LoginInput, MagicLinkInput } from "@athleteiq/validators";
 type Tab = "password" | "magic";
 
 export function LoginForm() {
-  const [tab, setTab] = useState<Tab>("magic");
+  const searchParams = useSearchParams();
+  const defaultTab: Tab = searchParams.get("tab") === "password" ? "password" : "magic";
+  const [tab, setTab] = useState<Tab>(defaultTab);
   const [magicSent, setMagicSent] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const router = useRouter();
-  const searchParams = useSearchParams();
   const next = searchParams.get("next") ?? "/athletes";
   const errorParam = searchParams.get("error");
 
@@ -44,8 +44,10 @@ export function LoginForm() {
       setServerError(`Hata: ${error.message}`);
       return;
     }
-    router.push(next);
-    router.refresh();
+    // Hard navigation (router.push değil): middleware taze çalışsın,
+    // aiq_uid eşleşmesiyle doğru rolü cookie'ye yeniden yazsın. Böylece
+    // önceki kullanıcının bayat rol cookie'si asla miras kalmaz.
+    window.location.href = next;
   }
 
   async function onMagicLink(values: MagicLinkInput) {

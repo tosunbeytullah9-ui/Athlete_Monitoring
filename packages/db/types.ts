@@ -7,30 +7,10 @@ export type Json =
   | Json[]
 
 export type Database = {
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
@@ -77,6 +57,50 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "acwr_logs_athlete_id_fkey"
+            columns: ["athlete_id"]
+            isOneToOne: false
+            referencedRelation: "athletes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      athlete_1rm_records: {
+        Row: {
+          athlete_id: string
+          created_at: string | null
+          exercise_id: string | null
+          exercise_name: string
+          exercise_source: string | null
+          id: string
+          notes: string | null
+          test_date: string
+          weight_kg: number
+        }
+        Insert: {
+          athlete_id: string
+          created_at?: string | null
+          exercise_id?: string | null
+          exercise_name: string
+          exercise_source?: string | null
+          id?: string
+          notes?: string | null
+          test_date: string
+          weight_kg: number
+        }
+        Update: {
+          athlete_id?: string
+          created_at?: string | null
+          exercise_id?: string | null
+          exercise_name?: string
+          exercise_source?: string | null
+          id?: string
+          notes?: string | null
+          test_date?: string
+          weight_kg?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "athlete_1rm_records_athlete_id_fkey"
             columns: ["athlete_id"]
             isOneToOne: false
             referencedRelation: "athletes"
@@ -169,6 +193,13 @@ export type Database = {
           weight_kg?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "athletes_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "org_trial_status"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "athletes_org_id_fkey"
             columns: ["org_id"]
@@ -266,6 +297,13 @@ export type Database = {
             foreignKeyName: "competitions_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
+            referencedRelation: "org_trial_status"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "competitions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
@@ -285,13 +323,18 @@ export type Database = {
           id: string
           load_kg: number | null
           load_percent: number | null
+          load_percent_1rm: number | null
+          load_type: string | null
           name: string
           notes: string | null
           order_index: number | null
           reps: number | null
           rest_sec: number | null
+          rpe_target: number | null
           session_id: string
           sets: number | null
+          superset_group: string | null
+          superset_order: number | null
           unit: string | null
         }
         Insert: {
@@ -300,13 +343,18 @@ export type Database = {
           id?: string
           load_kg?: number | null
           load_percent?: number | null
+          load_percent_1rm?: number | null
+          load_type?: string | null
           name: string
           notes?: string | null
           order_index?: number | null
           reps?: number | null
           rest_sec?: number | null
+          rpe_target?: number | null
           session_id: string
           sets?: number | null
+          superset_group?: string | null
+          superset_order?: number | null
           unit?: string | null
         }
         Update: {
@@ -315,13 +363,18 @@ export type Database = {
           id?: string
           load_kg?: number | null
           load_percent?: number | null
+          load_percent_1rm?: number | null
+          load_type?: string | null
           name?: string
           notes?: string | null
           order_index?: number | null
           reps?: number | null
           rest_sec?: number | null
+          rpe_target?: number | null
           session_id?: string
           sets?: number | null
+          superset_group?: string | null
+          superset_order?: number | null
           unit?: string | null
         }
         Relationships: [
@@ -367,6 +420,13 @@ export type Database = {
             foreignKeyName: "memberships_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
+            referencedRelation: "org_trial_status"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "memberships_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
@@ -379,14 +439,175 @@ export type Database = {
           },
         ]
       }
+      org_exercise_categories: {
+        Row: {
+          color: string | null
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          icon: string | null
+          id: string
+          name: string
+          name_tr: string | null
+          org_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          icon?: string | null
+          id?: string
+          name: string
+          name_tr?: string | null
+          org_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          color?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          icon?: string | null
+          id?: string
+          name?: string
+          name_tr?: string | null
+          org_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_exercise_categories_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "org_trial_status"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "org_exercise_categories_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      org_exercises: {
+        Row: {
+          coach_notes: string | null
+          created_at: string | null
+          created_by: string | null
+          custom_category_id: string | null
+          demo_url: string | null
+          difficulty: string | null
+          equipment: string[] | null
+          forked_from_platform: string | null
+          id: string
+          instructions: string | null
+          is_active: boolean | null
+          is_unilateral: boolean | null
+          load_type: string | null
+          movement_pattern: string | null
+          name: string
+          name_tr: string | null
+          org_id: string
+          primary_muscles: string[] | null
+          secondary_muscles: string[] | null
+          sport_tags: string[] | null
+          updated_at: string | null
+          updated_by: string | null
+        }
+        Insert: {
+          coach_notes?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          custom_category_id?: string | null
+          demo_url?: string | null
+          difficulty?: string | null
+          equipment?: string[] | null
+          forked_from_platform?: string | null
+          id?: string
+          instructions?: string | null
+          is_active?: boolean | null
+          is_unilateral?: boolean | null
+          load_type?: string | null
+          movement_pattern?: string | null
+          name: string
+          name_tr?: string | null
+          org_id: string
+          primary_muscles?: string[] | null
+          secondary_muscles?: string[] | null
+          sport_tags?: string[] | null
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Update: {
+          coach_notes?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          custom_category_id?: string | null
+          demo_url?: string | null
+          difficulty?: string | null
+          equipment?: string[] | null
+          forked_from_platform?: string | null
+          id?: string
+          instructions?: string | null
+          is_active?: boolean | null
+          is_unilateral?: boolean | null
+          load_type?: string | null
+          movement_pattern?: string | null
+          name?: string
+          name_tr?: string | null
+          org_id?: string
+          primary_muscles?: string[] | null
+          secondary_muscles?: string[] | null
+          sport_tags?: string[] | null
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_exercises_custom_category_id_fkey"
+            columns: ["custom_category_id"]
+            isOneToOne: false
+            referencedRelation: "org_exercise_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "org_exercises_forked_from_platform_fkey"
+            columns: ["forked_from_platform"]
+            isOneToOne: false
+            referencedRelation: "platform_exercises"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "org_exercises_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "org_trial_status"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "org_exercises_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organizations: {
         Row: {
           created_at: string | null
           id: string
           logo_url: string | null
           name: string
+          owner_id: string | null
           plan: string | null
+          plan_status: string | null
           slug: string
+          trial_ends_at: string | null
           updated_at: string | null
         }
         Insert: {
@@ -394,8 +615,11 @@ export type Database = {
           id?: string
           logo_url?: string | null
           name: string
+          owner_id?: string | null
           plan?: string | null
+          plan_status?: string | null
           slug: string
+          trial_ends_at?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -403,9 +627,66 @@ export type Database = {
           id?: string
           logo_url?: string | null
           name?: string
+          owner_id?: string | null
           plan?: string | null
+          plan_status?: string | null
           slug?: string
+          trial_ends_at?: string | null
           updated_at?: string | null
+        }
+        Relationships: []
+      }
+      platform_exercises: {
+        Row: {
+          created_at: string | null
+          demo_url: string | null
+          difficulty: string | null
+          equipment: string[] | null
+          id: string
+          instructions: string | null
+          is_active: boolean | null
+          is_unilateral: boolean | null
+          load_type: string | null
+          movement_pattern: string
+          name: string
+          name_tr: string | null
+          primary_muscles: string[] | null
+          secondary_muscles: string[] | null
+          sport_tags: string[] | null
+        }
+        Insert: {
+          created_at?: string | null
+          demo_url?: string | null
+          difficulty?: string | null
+          equipment?: string[] | null
+          id?: string
+          instructions?: string | null
+          is_active?: boolean | null
+          is_unilateral?: boolean | null
+          load_type?: string | null
+          movement_pattern: string
+          name: string
+          name_tr?: string | null
+          primary_muscles?: string[] | null
+          secondary_muscles?: string[] | null
+          sport_tags?: string[] | null
+        }
+        Update: {
+          created_at?: string | null
+          demo_url?: string | null
+          difficulty?: string | null
+          equipment?: string[] | null
+          id?: string
+          instructions?: string | null
+          is_active?: boolean | null
+          is_unilateral?: boolean | null
+          load_type?: string | null
+          movement_pattern?: string
+          name?: string
+          name_tr?: string | null
+          primary_muscles?: string[] | null
+          secondary_muscles?: string[] | null
+          sport_tags?: string[] | null
         }
         Relationships: []
       }
@@ -464,6 +745,13 @@ export type Database = {
           org_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "teams_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "org_trial_status"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "teams_org_id_fkey"
             columns: ["org_id"]
@@ -569,6 +857,13 @@ export type Database = {
             columns: ["athlete_id"]
             isOneToOne: false
             referencedRelation: "athletes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_programs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "org_trial_status"
             referencedColumns: ["id"]
           },
           {
@@ -801,7 +1096,42 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      org_trial_status: {
+        Row: {
+          id: string | null
+          is_trial_expired: boolean | null
+          name: string | null
+          owner_id: string | null
+          plan: string | null
+          plan_status: string | null
+          slug: string | null
+          trial_days_remaining: number | null
+          trial_ends_at: string | null
+        }
+        Insert: {
+          id?: string | null
+          is_trial_expired?: never
+          name?: string | null
+          owner_id?: string | null
+          plan?: string | null
+          plan_status?: string | null
+          slug?: string | null
+          trial_days_remaining?: never
+          trial_ends_at?: string | null
+        }
+        Update: {
+          id?: string | null
+          is_trial_expired?: never
+          name?: string | null
+          owner_id?: string | null
+          plan?: string | null
+          plan_status?: string | null
+          slug?: string | null
+          trial_days_remaining?: never
+          trial_ends_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       calculate_acwr: {
@@ -968,11 +1298,7 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {},
   },
 } as const
-

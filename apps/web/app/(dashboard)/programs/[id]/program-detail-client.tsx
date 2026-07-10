@@ -8,6 +8,7 @@ import { Button } from "@athleteiq/ui/components/button";
 import { Badge } from "@athleteiq/ui/components/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@athleteiq/ui/components/card";
 import { createClient } from "@/lib/supabase/client";
+import { useUserContext } from "@/lib/hooks/useUserContext";
 import { publishProgram } from "@athleteiq/db/queries/programs";
 import type { Tables } from "@athleteiq/db/types";
 
@@ -42,6 +43,8 @@ const PHASE_LABELS: Record<string, string> = {
 
 export function ProgramDetailClient({ program, athlete, team }: Props) {
   const router = useRouter();
+  const { role } = useUserContext();
+  const isAthlete = role === "athlete";
   const [isPublishing, setIsPublishing] = useState(false);
   const [isPublished, setIsPublished] = useState(program.is_published ?? false);
 
@@ -71,10 +74,12 @@ export function ProgramDetailClient({ program, athlete, team }: Props) {
           <ArrowLeft className="h-4 w-4" />
           Programlar
         </Button>
-        <Button variant="outline" size="sm" onClick={() => router.push(`/programs/${program.id}/edit`)}>
-          <Pencil className="h-4 w-4" />
-          Düzenle
-        </Button>
+        {!isAthlete && (
+          <Button variant="outline" size="sm" onClick={() => router.push(`/programs/${program.id}/edit`)}>
+            <Pencil className="h-4 w-4" />
+            Düzenle
+          </Button>
+        )}
       </div>
 
       {/* Başlık kartı */}
@@ -129,7 +134,7 @@ export function ProgramDetailClient({ program, athlete, team }: Props) {
               )}
             </div>
 
-            {!isPublished && (
+            {!isPublished && !isAthlete && (
               <Button onClick={handlePublish} disabled={isPublishing} className="shrink-0">
                 {isPublishing ? (
                   <>Yayınlanıyor...</>
@@ -225,7 +230,11 @@ export function ProgramDetailClient({ program, athlete, team }: Props) {
                                   <td className="py-2 px-2 text-center">{exercise.sets ?? "—"}</td>
                                   <td className="py-2 px-2 text-center">{exercise.reps ?? "—"}</td>
                                   <td className="py-2 px-2 text-center">
-                                    {exercise.load_kg
+                                    {exercise.load_type === "percentage_1rm" && exercise.load_percent_1rm
+                                      ? `%${exercise.load_percent_1rm} 1RM`
+                                      : exercise.load_type === "rpe" && exercise.rpe_target
+                                      ? `RPE ${exercise.rpe_target}`
+                                      : exercise.load_kg
                                       ? `${exercise.load_kg} ${exercise.unit ?? "kg"}`
                                       : exercise.load_percent
                                       ? `%${exercise.load_percent}`

@@ -33,7 +33,7 @@ export default async function SuperAdminPage() {
           Super Admin — Organizasyonlar
         </h1>
         <p className="text-muted-foreground mt-1">
-          Platformdaki tüm tenant'lar
+          Platformdaki tüm tenant&apos;lar
         </p>
       </div>
 

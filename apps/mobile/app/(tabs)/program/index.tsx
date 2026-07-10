@@ -45,7 +45,11 @@ export default function ProgramScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [realtimeConnected, setRealtimeConnected] = useState(false);
 
-  const fetchPrograms = useCallback(async (athleteId: string) => {
+  const fetchPrograms = useCallback(async (athleteId: string, teamId: string | null) => {
+    const orFilter = teamId
+      ? `athlete_id.eq.${athleteId},team_id.eq.${teamId}`
+      : `athlete_id.eq.${athleteId}`;
+
     const { data, error } = await supabase
       .from("training_programs")
       .select(
@@ -56,7 +60,7 @@ export default function ProgramScreen() {
         )
       `
       )
-      .or(`athlete_id.eq.${athleteId},team_id.eq.${athlete?.team_id}`)
+      .or(orFilter)
       .eq("is_published", true)
       .order("start_date", { ascending: false })
       .limit(5);
@@ -66,7 +70,7 @@ export default function ProgramScreen() {
     }
     setLoading(false);
     setRefreshing(false);
-  }, [athlete?.team_id]);
+  }, []);
 
   useEffect(() => {
     if (!athlete) {
@@ -74,9 +78,14 @@ export default function ProgramScreen() {
       return;
     }
 
-    fetchPrograms(athlete.id);
+    fetchPrograms(athlete.id, athlete.team_id);
 
-    // Realtime: yayınlanan program değişikliklerini dinle
+    // Realtime: TÜM training_programs değişikliklerini dinle (filtre YOK).
+    // Postgres realtime filtresi (is_published=eq.true) yalnızca satır filtreye
+    // UYDUĞUNDA fire eder; unpublish (true→false) olayını kaçırır ve program
+    // ekranda takılı kalır. Bu yüzden filtreyi kaldırıp eşleştirmeyi client'ta
+    // yapıyoruz: her değişimde fetchPrograms yeniden çalışır ve yalnızca bu
+    // sporcuya ait YAYINLANMIŞ programları döndürür (unpublish → listeden çıkar).
     const channel = supabase
       .channel(`programs-athlete-${athlete.id}`)
       .on(
@@ -85,10 +94,14 @@ export default function ProgramScreen() {
           event: "*",
           schema: "public",
           table: "training_programs",
-          filter: `is_published=eq.true`,
         },
         () => {
-          fetchPrograms(athlete.id);
+          // Her değişimde yeniden çek. fetchPrograms zaten .or(athlete/team) +
+          // .eq(is_published,true) ile filtreler; bu sporcuya ait olmayan veya
+          // unpublish edilmiş programlar sonuçtan otomatik düşer. DELETE
+          // event'inde payload.old yalnızca PK içerebildiği için client-side
+          // eşleştirme yerine koşulsuz refetch daha güvenli (sorgu limit 5, ucuz).
+          fetchPrograms(athlete.id, athlete.team_id);
         }
       )
       .subscribe((status) => {
@@ -103,7 +116,7 @@ export default function ProgramScreen() {
   const onRefresh = useCallback(() => {
     if (!athlete) return;
     setRefreshing(true);
-    fetchPrograms(athlete.id);
+    fetchPrograms(athlete.id, athlete.team_id);
   }, [athlete, fetchPrograms]);
 
   if (athleteLoading || loading) {

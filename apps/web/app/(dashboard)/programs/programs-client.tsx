@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Plus, CheckCircle2, Clock, Users, User } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { useUserContext } from "@/lib/hooks/useUserContext";
 import { toast } from "@/components/ui/use-toast";
 import { Button } from "@athleteiq/ui/components/button";
 import { Badge } from "@athleteiq/ui/components/badge";
@@ -39,7 +40,11 @@ const PHASE_COLORS: Record<string, string> = {
 
 export function ProgramsClient({ programs, teams, athletes }: Props) {
   const router = useRouter();
-  const [filter, setFilter] = useState<"all" | "published" | "draft">("all");
+  const { role } = useUserContext();
+  const isAthlete = role === "athlete";
+  const [filter, setFilter] = useState<"all" | "published" | "draft">(
+    isAthlete ? "published" : "all"
+  );
 
   useEffect(() => {
     const supabase = createClient();
@@ -76,10 +81,12 @@ export function ProgramsClient({ programs, teams, athletes }: Props) {
   );
 
   const filtered = useMemo(() => {
+    // Athlete her durumda yalnızca yayınlanmış programları görür (RLS de zorlar)
+    if (isAthlete) return programs.filter((p) => p.is_published);
     if (filter === "published") return programs.filter((p) => p.is_published);
     if (filter === "draft") return programs.filter((p) => !p.is_published);
     return programs;
-  }, [programs, filter]);
+  }, [programs, filter, isAthlete]);
 
   const publishedCount = programs.filter((p) => p.is_published).length;
   const draftCount = programs.filter((p) => !p.is_published).length;
@@ -90,18 +97,22 @@ export function ProgramsClient({ programs, teams, athletes }: Props) {
         <div>
           <h1 className="text-2xl font-bold">Antrenman Programları</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {programs.length} program — {publishedCount} yayında, {draftCount} taslak
+            {isAthlete
+              ? `${publishedCount} program`
+              : `${programs.length} program — ${publishedCount} yayında, ${draftCount} taslak`}
           </p>
         </div>
-        <Button asChild>
-          <Link href="/programs/new">
-            <Plus className="h-4 w-4" />
-            Yeni Program
-          </Link>
-        </Button>
+        {!isAthlete && (
+          <Button asChild>
+            <Link href="/programs/new">
+              <Plus className="h-4 w-4" />
+              Yeni Program
+            </Link>
+          </Button>
+        )}
       </div>
 
-      <div className="flex gap-2">
+      <div className={`flex gap-2 ${isAthlete ? "hidden" : ""}`}>
         {(["all", "published", "draft"] as const).map((f) => (
           <button
             key={f}
@@ -121,11 +132,17 @@ export function ProgramsClient({ programs, teams, athletes }: Props) {
         <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-16 text-center">
           <Clock className="h-12 w-12 text-muted-foreground mb-3" />
           <p className="text-sm text-muted-foreground">
-            {filter === "all" ? "Henüz program oluşturulmamış." : "Bu filtreye uygun program yok."}
+            {isAthlete
+              ? "Henüz size atanmış yayınlanmış bir program yok."
+              : filter === "all"
+              ? "Henüz program oluşturulmamış."
+              : "Bu filtreye uygun program yok."}
           </p>
-          <Button variant="outline" size="sm" className="mt-4" asChild>
-            <Link href="/programs/new">Program Oluştur</Link>
-          </Button>
+          {!isAthlete && (
+            <Button variant="outline" size="sm" className="mt-4" asChild>
+              <Link href="/programs/new">Program Oluştur</Link>
+            </Button>
+          )}
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">

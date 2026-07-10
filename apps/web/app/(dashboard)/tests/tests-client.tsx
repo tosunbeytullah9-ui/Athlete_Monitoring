@@ -1,0 +1,559 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { Plus, X, Activity, ArrowUp, ArrowDown, Minus, Trash2 } from "lucide-react";
+import { Button } from "@athleteiq/ui/components/button";
+import { Input } from "@athleteiq/ui/components/input";
+import { Label } from "@athleteiq/ui/components/label";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@athleteiq/ui/components/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { createClient } from "@/lib/supabase/client";
+import { createTest, deleteTest } from "@athleteiq/db/queries/tests";
+import { useUserContext } from "@/lib/hooks/useUserContext";
+import type { Tables } from "@athleteiq/db/types";
+
+export type TestRow = Tables<"test_results"> & {
+  athletes: { id: string; full_name: string; org_id: string } | null;
+};
+type Athlete = { id: string; full_name: string };
+
+interface Props {
+  orgId: string;
+  tests: TestRow[];
+  athletes: Athlete[];
+}
+
+// =============================================
+// Atletik performans test kataloğu
+// lowerIsBetter: sprint & çeviklikte düşük değer = iyileşme
+// =============================================
+interface TestType {
+  value: string;
+  label: string;
+  unit: string;
+  lowerIsBetter?: boolean;
+}
+
+interface TestCategory {
+  key: string;
+  label: string;
+  types: TestType[];
+}
+
+const TEST_CATEGORIES: TestCategory[] = [
+  {
+    key: "jump",
+    label: "Sıçrama",
+    types: [
+      { value: "CMJ", label: "CMJ", unit: "cm" },
+      { value: "Squat Jump", label: "Squat Jump", unit: "cm" },
+      { value: "Drop Jump", label: "Drop Jump", unit: "cm" },
+      { value: "Broad Jump", label: "Broad Jump", unit: "cm" },
+      { value: "Abalakov", label: "Abalakov", unit: "cm" },
+    ],
+  },
+  {
+    key: "sprint",
+    label: "Sprint",
+    types: [
+      { value: "10m Sprint", label: "10m Sprint", unit: "s", lowerIsBetter: true },
+      { value: "20m Sprint", label: "20m Sprint", unit: "s", lowerIsBetter: true },
+      { value: "30m Sprint", label: "30m Sprint", unit: "s", lowerIsBetter: true },
+      { value: "40m Sprint", label: "40m Sprint", unit: "s", lowerIsBetter: true },
+      { value: "Flying 30m", label: "Flying 30m", unit: "s", lowerIsBetter: true },
+    ],
+  },
+  {
+    key: "strength",
+    label: "Maksimal Kuvvet",
+    types: [
+      { value: "1RM Back Squat", label: "1RM Back Squat", unit: "kg" },
+      { value: "1RM Bench Press", label: "1RM Bench Press", unit: "kg" },
+      { value: "1RM Deadlift", label: "1RM Deadlift", unit: "kg" },
+      { value: "IMTP Peak Force", label: "IMTP Peak Force", unit: "kg" },
+    ],
+  },
+  {
+    key: "power",
+    label: "Güç",
+    types: [
+      { value: "Wingate Peak Power", label: "Wingate Peak Power", unit: "W" },
+      { value: "Peak Power Output", label: "Peak Power Output", unit: "W" },
+    ],
+  },
+  {
+    key: "endurance",
+    label: "Dayanıklılık",
+    types: [
+      { value: "VO2max", label: "VO2max", unit: "ml/kg/min" },
+      { value: "Yo-Yo IR1", label: "Yo-Yo IR1", unit: "level" },
+      { value: "Beep Test", label: "Beep Test", unit: "level" },
+      { value: "30-15 IFT", label: "30-15 IFT", unit: "level" },
+    ],
+  },
+  {
+    key: "agility",
+    label: "Çeviklik",
+    types: [
+      { value: "505 Test", label: "505 Test", unit: "s", lowerIsBetter: true },
+      { value: "T-Test", label: "T-Test", unit: "s", lowerIsBetter: true },
+      { value: "Illinois Agility", label: "Illinois Agility", unit: "s", lowerIsBetter: true },
+      { value: "Pro Agility (5-10-5)", label: "Pro Agility (5-10-5)", unit: "s", lowerIsBetter: true },
+    ],
+  },
+  {
+    key: "flexibility",
+    label: "Esneklik / Hareketlilik",
+    types: [
+      { value: "Sit and Reach", label: "Sit and Reach", unit: "cm" },
+      { value: "FMS Total", label: "FMS Total", unit: "score" },
+      { value: "Active SLR", label: "Active SLR", unit: "score" },
+    ],
+  },
+];
+
+const TYPE_INDEX: Record<string, { type: TestType; categoryKey: string; categoryLabel: string }> =
+  (() => {
+    const idx: Record<
+      string,
+      { type: TestType; categoryKey: string; categoryLabel: string }
+    > = {};
+    for (const cat of TEST_CATEGORIES) {
+      for (const t of cat.types) {
+        idx[t.value] = { type: t, categoryKey: cat.key, categoryLabel: cat.label };
+      }
+    }
+    return idx;
+  })();
+
+const testSchema = z.object({
+  athlete_id: z.string().min(1, "Sporcu zorunludur"),
+  category: z.string().min(1, "Kategori zorunludur"),
+  test_type: z.string().min(1, "Test tipi zorunludur"),
+  value: z.coerce.number({ invalid_type_error: "Geçerli bir değer girin" }),
+  test_date: z.string().min(1, "Tarih zorunludur"),
+  notes: z.string().optional(),
+});
+
+type TestForm = z.input<typeof testSchema>;
+
+function today(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+// Aynı sporcu+test için önceki sonuca göre trend hesapla.
+// rows: tarihe göre AZALAN sıralı tüm satırlar (en yeni başta).
+function computeTrend(
+  row: TestRow,
+  allRows: TestRow[]
+): "up" | "down" | "flat" | null {
+  if (row.value == null) return null;
+  const prior = allRows
+    .filter(
+      (r) =>
+        r.athlete_id === row.athlete_id &&
+        r.test_type === row.test_type &&
+        r.id !== row.id &&
+        (r.test_date < row.test_date ||
+          (r.test_date === row.test_date && r.id < row.id)) &&
+        r.value != null
+    )
+    .sort((a, b) =>
+      a.test_date < b.test_date ? 1 : a.test_date > b.test_date ? -1 : a.id < b.id ? 1 : -1
+    )[0];
+
+  if (!prior || prior.value == null) return null;
+  const diff = row.value - prior.value;
+  if (diff === 0) return "flat";
+  const lowerIsBetter = TYPE_INDEX[row.test_type]?.type.lowerIsBetter ?? false;
+  const improved = lowerIsBetter ? diff < 0 : diff > 0;
+  return improved ? "up" : "down";
+}
+
+export function TestsClient({ orgId, tests: initialTests, athletes }: Props) {
+  const { role } = useUserContext();
+  const canManage = role === "admin" || role === "coach";
+
+  const [tests, setTests] = useState<TestRow[]>(initialTests);
+  const [showForm, setShowForm] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  // Filtreler
+  const [filterAthlete, setFilterAthlete] = useState<string>("all");
+  const [filterCategory, setFilterCategory] = useState<string>("all");
+  const [filterFrom, setFilterFrom] = useState<string>("");
+  const [filterTo, setFilterTo] = useState<string>("");
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    watch,
+    setValue,
+    formState: { errors, isSubmitting },
+  } = useForm<TestForm>({
+    resolver: zodResolver(testSchema),
+    defaultValues: { test_date: today(), category: "", test_type: "" },
+  });
+
+  const selectedCategory = watch("category");
+  const selectedType = watch("test_type");
+
+  const typeOptions = useMemo(() => {
+    const cat = TEST_CATEGORIES.find((c) => c.key === selectedCategory);
+    return cat?.types ?? [];
+  }, [selectedCategory]);
+
+  const autoUnit = TYPE_INDEX[selectedType]?.type.unit ?? "";
+
+  async function onSubmit(data: TestForm) {
+    setSubmitError(null);
+    try {
+      const supabase = createClient();
+      const unit = TYPE_INDEX[data.test_type]?.type.unit ?? null;
+      const created = (await createTest(supabase, {
+        athlete_id: data.athlete_id,
+        test_type: data.test_type,
+        value: Number(data.value),
+        unit,
+        test_date: data.test_date,
+        notes: data.notes?.trim() ? data.notes.trim() : null,
+      })) as TestRow;
+
+      setTests((prev) =>
+        [created, ...prev].sort((a, b) =>
+          a.test_date < b.test_date ? 1 : a.test_date > b.test_date ? -1 : 0
+        )
+      );
+      reset({ test_date: today(), category: "", test_type: "" });
+      setShowForm(false);
+    } catch (err: unknown) {
+      setSubmitError(
+        err instanceof Error ? err.message : "Test sonucu eklenirken hata oluştu."
+      );
+    }
+  }
+
+  async function onDelete(id: string) {
+    const prev = tests;
+    setTests((t) => t.filter((r) => r.id !== id));
+    try {
+      const supabase = createClient();
+      await deleteTest(supabase, id);
+    } catch {
+      setTests(prev); // geri al
+    }
+  }
+
+  const filtered = useMemo(() => {
+    return tests.filter((t) => {
+      if (filterAthlete !== "all" && t.athlete_id !== filterAthlete) return false;
+      if (filterCategory !== "all") {
+        const cat = TYPE_INDEX[t.test_type]?.categoryKey;
+        if (cat !== filterCategory) return false;
+      }
+      if (filterFrom && t.test_date < filterFrom) return false;
+      if (filterTo && t.test_date > filterTo) return false;
+      return true;
+    });
+  }, [tests, filterAthlete, filterCategory, filterFrom, filterTo]);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Test Sonuçları</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            {tests.length} kayıt — atletik performans testleri
+          </p>
+        </div>
+        {canManage && (
+          <Button onClick={() => setShowForm((v) => !v)}>
+            {showForm ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+            {showForm ? "İptal" : "Test Sonucu Ekle"}
+          </Button>
+        )}
+      </div>
+
+      {/* Ekleme formu */}
+      {showForm && canManage && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Yeni Test Sonucu</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5 col-span-2 md:col-span-1">
+                  <Label htmlFor="test-athlete">Sporcu *</Label>
+                  <select
+                    id="test-athlete"
+                    {...register("athlete_id")}
+                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                  >
+                    <option value="">Seçin</option>
+                    {athletes.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.full_name}
+                      </option>
+                    ))}
+                  </select>
+                  {errors.athlete_id && (
+                    <p className="text-xs text-destructive">{errors.athlete_id.message}</p>
+                  )}
+                </div>
+
+                <div className="space-y-1.5 col-span-2 md:col-span-1">
+                  <Label htmlFor="test-category">Test Kategorisi *</Label>
+                  <select
+                    id="test-category"
+                    {...register("category")}
+                    onChange={(e) => {
+                      setValue("category", e.target.value);
+                      setValue("test_type", "");
+                    }}
+                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                  >
+                    <option value="">Seçin</option>
+                    {TEST_CATEGORIES.map((c) => (
+                      <option key={c.key} value={c.key}>
+                        {c.label}
+                      </option>
+                    ))}
+                  </select>
+                  {errors.category && (
+                    <p className="text-xs text-destructive">{errors.category.message}</p>
+                  )}
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="test-type">Test Tipi *</Label>
+                  <select
+                    id="test-type"
+                    {...register("test_type")}
+                    disabled={!selectedCategory}
+                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <option value="">
+                      {selectedCategory ? "Seçin" : "Önce kategori seçin"}
+                    </option>
+                    {typeOptions.map((t) => (
+                      <option key={t.value} value={t.value}>
+                        {t.label}
+                      </option>
+                    ))}
+                  </select>
+                  {errors.test_type && (
+                    <p className="text-xs text-destructive">{errors.test_type.message}</p>
+                  )}
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="test-value">Değer *</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="test-value"
+                      type="number"
+                      step="any"
+                      {...register("value")}
+                      placeholder="42"
+                    />
+                    <span className="text-sm text-muted-foreground min-w-[70px]">
+                      {autoUnit || "birim"}
+                    </span>
+                  </div>
+                  {errors.value && (
+                    <p className="text-xs text-destructive">{errors.value.message}</p>
+                  )}
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="test-date">Tarih *</Label>
+                  <Input id="test-date" type="date" {...register("test_date")} />
+                  {errors.test_date && (
+                    <p className="text-xs text-destructive">{errors.test_date.message}</p>
+                  )}
+                </div>
+
+                <div className="space-y-1.5 col-span-2">
+                  <Label htmlFor="test-notes">Not</Label>
+                  <Input
+                    id="test-notes"
+                    {...register("notes")}
+                    placeholder="İsteğe bağlı not..."
+                  />
+                </div>
+              </div>
+
+              {submitError && (
+                <p className="text-xs text-destructive">{submitError}</p>
+              )}
+
+              <div className="flex justify-end gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowForm(false)}
+                >
+                  İptal
+                </Button>
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? "Kaydediliyor..." : "Sonucu Ekle"}
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Filtreler */}
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="space-y-1">
+          <Label className="text-xs">Sporcu</Label>
+          <select
+            value={filterAthlete}
+            onChange={(e) => setFilterAthlete(e.target.value)}
+            className="flex h-9 w-44 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+          >
+            <option value="all">Tüm Sporcular</option>
+            {athletes.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.full_name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Kategori</Label>
+          <select
+            value={filterCategory}
+            onChange={(e) => setFilterCategory(e.target.value)}
+            className="flex h-9 w-44 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+          >
+            <option value="all">Tüm Kategoriler</option>
+            {TEST_CATEGORIES.map((c) => (
+              <option key={c.key} value={c.key}>
+                {c.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Başlangıç</Label>
+          <Input
+            type="date"
+            value={filterFrom}
+            onChange={(e) => setFilterFrom(e.target.value)}
+            className="w-40"
+          />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Bitiş</Label>
+          <Input
+            type="date"
+            value={filterTo}
+            onChange={(e) => setFilterTo(e.target.value)}
+            className="w-40"
+          />
+        </div>
+      </div>
+
+      {/* Tablo */}
+      {filtered.length === 0 ? (
+        <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-16 text-center">
+          <Activity className="h-12 w-12 text-muted-foreground mb-3" />
+          <p className="text-sm text-muted-foreground">
+            {tests.length === 0
+              ? "Henüz test sonucu eklenmemiş."
+              : "Filtrelere uyan sonuç bulunamadı."}
+          </p>
+        </div>
+      ) : (
+        <Card>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Tarih</TableHead>
+                  <TableHead>Sporcu</TableHead>
+                  <TableHead>Kategori</TableHead>
+                  <TableHead>Test Tipi</TableHead>
+                  <TableHead className="text-right">Değer</TableHead>
+                  <TableHead>Birim</TableHead>
+                  <TableHead className="text-center">Trend</TableHead>
+                  {canManage && <TableHead className="w-10" />}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filtered.map((t) => {
+                  const meta = TYPE_INDEX[t.test_type];
+                  const trend = computeTrend(t, tests);
+                  return (
+                    <TableRow key={t.id}>
+                      <TableCell className="whitespace-nowrap">
+                        {new Date(t.test_date).toLocaleDateString("tr-TR")}
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        {t.athletes?.full_name ?? "—"}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {meta?.categoryLabel ?? "—"}
+                      </TableCell>
+                      <TableCell>{t.test_type}</TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {t.value ?? "—"}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {t.unit ?? meta?.type.unit ?? "—"}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {trend === "up" && (
+                          <ArrowUp className="inline h-4 w-4 text-green-600" />
+                        )}
+                        {trend === "down" && (
+                          <ArrowDown className="inline h-4 w-4 text-red-600" />
+                        )}
+                        {trend === "flat" && (
+                          <Minus className="inline h-4 w-4 text-muted-foreground" />
+                        )}
+                        {trend === null && (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      {canManage && (
+                        <TableCell>
+                          <button
+                            onClick={() => onDelete(t.id)}
+                            className="text-muted-foreground hover:text-destructive transition-colors"
+                            aria-label="Sil"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </TableCell>
+                      )}
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}

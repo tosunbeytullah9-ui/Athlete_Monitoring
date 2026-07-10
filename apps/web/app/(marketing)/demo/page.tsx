@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 
 const ATHLETE_COUNTS = [
   "1-10",
@@ -56,12 +57,12 @@ export default function DemoPage() {
           <p className="text-muted-foreground text-sm">
             En kısa sürede <strong>{email}</strong> adresinize dönüş yapacağız.
           </p>
-          <a
+          <Link
             href="/"
             className="inline-flex rounded-md border px-6 py-2 text-sm font-medium hover:bg-muted transition-colors"
           >
             Ana Sayfaya Dön
-          </a>
+          </Link>
         </div>
       ) : (
         <form

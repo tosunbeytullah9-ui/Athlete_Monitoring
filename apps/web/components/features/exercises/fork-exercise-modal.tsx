@@ -8,22 +8,22 @@ import { createClient } from "@/lib/supabase/client";
 import type { PlatformExercise, OrgExercise } from "@athleteiq/db/queries/exercises";
 
 const MOVEMENT_LABELS: Record<string, string> = {
-  horizontal_push: "Yatay İtiş",
-  vertical_push: "Dikey İtiş",
-  horizontal_pull: "Yatay Çekiş",
-  vertical_pull: "Dikey Çekiş",
-  hip_hinge_bilateral: "Kalça Menteşe (2 Bacak)",
-  hip_hinge_unilateral: "Kalça Menteşe (Tek Bacak)",
-  knee_dominant_bilateral: "Diz Dominant (2 Bacak)",
-  knee_dominant_unilateral: "Diz Dominant (Tek Bacak)",
-  rotation: "Rotasyon",
-  anti_rotation: "Anti-Rotasyon",
-  jump_land: "Zıplama / İniş",
-  locomotion: "Hareket / Koşu",
-  core_stability: "Core Stabilitesi",
-  loaded_carry: "Yüklü Taşıma",
-  sport_specific: "Spora Özgü",
-  mobility_flexibility: "Mobilite / Esneklik",
+  horizontal_push: "Horizontal Push",
+  vertical_push: "Vertical Push",
+  horizontal_pull: "Horizontal Pull",
+  vertical_pull: "Vertical Pull",
+  hip_hinge_bilateral: "Hip Hinge (Bilateral)",
+  hip_hinge_unilateral: "Hip Hinge (Unilateral)",
+  knee_dominant_bilateral: "Knee Dominant (Bilateral)",
+  knee_dominant_unilateral: "Knee Dominant (Unilateral)",
+  rotation: "Rotation",
+  anti_rotation: "Anti-Rotation",
+  jump_land: "Jump & Land",
+  locomotion: "Locomotion",
+  core_stability: "Core Stability",
+  loaded_carry: "Loaded Carry",
+  sport_specific: "Sport Specific",
+  mobility_flexibility: "Mobility & Flexibility",
 };
 
 interface Props {
@@ -148,7 +148,10 @@ export function ForkExerciseModal({ platformExercises, orgId, userId, onClose, o
                     selected?.id === ex.id ? "bg-primary/10 border-l-2 border-l-primary" : ""
                   }`}
                 >
-                  <p className="text-sm font-medium">{ex.name_tr ?? ex.name}</p>
+                  <p className="text-sm font-medium">{ex.name}</p>
+                  {ex.name_tr && ex.name_tr !== ex.name && (
+                    <p className="text-xs text-muted-foreground/60">({ex.name_tr})</p>
+                  )}
                   <p className="text-xs text-muted-foreground">
                     {MOVEMENT_LABELS[ex.movement_pattern] ?? ex.movement_pattern}
                     {ex.difficulty && ` • ${ex.difficulty}`}

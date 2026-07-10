@@ -6,22 +6,22 @@ import { Input } from "@athleteiq/ui/components/input";
 import type { PlatformExercise, OrgExercise, OrgExerciseCategory, Athlete1RMRecord } from "@athleteiq/db/queries/exercises";
 
 const MOVEMENT_LABELS: Record<string, string> = {
-  horizontal_push: "Yatay İtiş",
-  vertical_push: "Dikey İtiş",
-  horizontal_pull: "Yatay Çekiş",
-  vertical_pull: "Dikey Çekiş",
-  hip_hinge_bilateral: "Kalça Menteşe (2 Bacak)",
-  hip_hinge_unilateral: "Kalça Menteşe (Tek Bacak)",
-  knee_dominant_bilateral: "Diz Dominant (2 Bacak)",
-  knee_dominant_unilateral: "Diz Dominant (Tek Bacak)",
-  rotation: "Rotasyon",
-  anti_rotation: "Anti-Rotasyon",
-  jump_land: "Zıplama / İniş",
-  locomotion: "Hareket / Koşu",
-  core_stability: "Core Stabilitesi",
-  loaded_carry: "Yüklü Taşıma",
-  sport_specific: "Spora Özgü",
-  mobility_flexibility: "Mobilite / Esneklik",
+  horizontal_push: "Horizontal Push",
+  vertical_push: "Vertical Push",
+  horizontal_pull: "Horizontal Pull",
+  vertical_pull: "Vertical Pull",
+  hip_hinge_bilateral: "Hip Hinge (Bilateral)",
+  hip_hinge_unilateral: "Hip Hinge (Unilateral)",
+  knee_dominant_bilateral: "Knee Dominant (Bilateral)",
+  knee_dominant_unilateral: "Knee Dominant (Unilateral)",
+  rotation: "Rotation",
+  anti_rotation: "Anti-Rotation",
+  jump_land: "Jump & Land",
+  locomotion: "Locomotion",
+  core_stability: "Core Stability",
+  loaded_carry: "Loaded Carry",
+  sport_specific: "Sport Specific",
+  mobility_flexibility: "Mobility & Flexibility",
 };
 
 export interface PickedExercise {
@@ -93,7 +93,7 @@ export function ExercisePickerModal({
 
   function handlePick(ex: (typeof filtered)[number]) {
     onPick({
-      name: ex.name_tr ?? ex.name,
+      name: ex.name,
       category: ex.movement_pattern ?? undefined,
       load_type: ex.load_type ?? undefined,
     });
@@ -207,7 +207,6 @@ export function ExercisePickerModal({
                 <p className="text-center text-sm text-muted-foreground py-8">Sonuç bulunamadı.</p>
               ) : (
                 filtered.map((ex) => {
-                  const displayName = ex.name_tr ?? ex.name;
                   const max = maxMap[ex.name.toLowerCase()] ?? maxMap[(ex.name_tr ?? "").toLowerCase()];
 
                   return (
@@ -218,7 +217,10 @@ export function ExercisePickerModal({
                       className="w-full text-left px-4 py-2.5 border-b last:border-0 hover:bg-accent transition-colors flex items-center justify-between gap-3"
                     >
                       <div className="min-w-0">
-                        <p className="text-sm font-medium truncate">{displayName}</p>
+                        <p className="text-sm font-medium truncate">{ex.name}</p>
+                        {ex.name_tr && ex.name_tr !== ex.name && (
+                          <p className="text-xs text-muted-foreground/60 truncate">({ex.name_tr})</p>
+                        )}
                         <p className="text-xs text-muted-foreground">
                           {ex._source === "org" ? "Org • " : "P • "}
                           {MOVEMENT_LABELS[ex.movement_pattern ?? ""] ?? ex.movement_pattern}

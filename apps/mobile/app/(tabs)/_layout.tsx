@@ -5,58 +5,44 @@ export default function TabsLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: "#1d4ed8",
         headerShown: false,
+        tabBarActiveTintColor: "#534AB7",
+        tabBarInactiveTintColor: "#9C9A92",
+        tabBarStyle: {
+          backgroundColor: "#FFFFFF",
+          borderTopColor: "#E8E6DE",
+          paddingBottom: 8,
+          height: 64,
+        },
       }}
     >
       <Tabs.Screen
-        name="program/index"
+        name="program"
         options={{
           title: "Program",
-          tabBarIcon: ({ color, size }) => (
-            <Calendar size={size} color={color} />
-          ),
+          tabBarIcon: ({ color }) => <Calendar size={22} color={color} />,
         }}
       />
       <Tabs.Screen
-        name="recovery/index"
+        name="recovery"
         options={{
           title: "Recovery",
-          tabBarIcon: ({ color, size }) => (
-            <Activity size={size} color={color} />
-          ),
+          tabBarIcon: ({ color }) => <Activity size={22} color={color} />,
         }}
       />
       <Tabs.Screen
-        name="competitions/index"
+        name="competitions"
         options={{
           title: "Yarışmalar",
-          tabBarIcon: ({ color, size }) => (
-            <Trophy size={size} color={color} />
-          ),
+          tabBarIcon: ({ color }) => <Trophy size={22} color={color} />,
         }}
       />
       <Tabs.Screen
-        name="profile/index"
+        name="profile"
         options={{
           title: "Profil",
-          tabBarIcon: ({ color, size }) => (
-            <User size={size} color={color} />
-          ),
+          tabBarIcon: ({ color }) => <User size={22} color={color} />,
         }}
-      />
-      {/* Tab bar'da görünmeyecek alt sayfalar */}
-      <Tabs.Screen
-        name="program/[day]"
-        options={{ tabBarButton: () => null }}
-      />
-      <Tabs.Screen
-        name="profile/connect-whoop"
-        options={{ tabBarButton: () => null }}
-      />
-      <Tabs.Screen
-        name="profile/connect-polar"
-        options={{ tabBarButton: () => null }}
       />
     </Tabs>
   );

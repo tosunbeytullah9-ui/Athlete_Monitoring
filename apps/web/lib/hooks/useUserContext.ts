@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useServerUserContext } from "@/lib/hooks/user-context-provider";
 import type { User } from "@supabase/supabase-js";
 
 export interface UserContext {
@@ -23,6 +24,7 @@ export function useUserContext(): UserContext {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const supabase = createClient();
+  const server = useServerUserContext();
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -39,9 +41,12 @@ export function useUserContext(): UserContext {
     return () => subscription.unsubscribe();
   }, []);
 
-  const role = getCookie("aiq_role") as UserContext["role"];
-  const orgId = getCookie("aiq_org_id");
-  const teamId = getCookie("aiq_team_id");
+  // Rol/org/team SSR'da server provider'dan gelir (aiq_* cookie'leri httpOnly,
+  // JS okuyamaz). Provider yoksa cookie'ye düş (geriye dönük uyumluluk).
+  const role =
+    server.role ?? (getCookie("aiq_role") as UserContext["role"]);
+  const orgId = server.orgId ?? getCookie("aiq_org_id");
+  const teamId = server.teamId ?? getCookie("aiq_team_id");
   const isSuperAdmin =
     user?.user_metadata?.["platform_role"] === "super_admin";
 

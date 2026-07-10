@@ -2,8 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import type { Tables } from "@athleteiq/db/types";
 
 type BannerState = "info" | "warning" | "expired" | "hidden";
+
+type TrialStatus = Pick<
+  Tables<"org_trial_status">,
+  "plan_status" | "is_trial_expired" | "trial_days_remaining"
+>;
 
 export function TrialBanner({ orgId }: { orgId: string }) {
   const [state, setState] = useState<BannerState>("hidden");
@@ -13,13 +19,12 @@ export function TrialBanner({ orgId }: { orgId: string }) {
   useEffect(() => {
     if (!orgId) return;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (supabase as any)
+    supabase
       .from("org_trial_status")
       .select("plan_status, is_trial_expired, trial_days_remaining")
       .eq("id", orgId)
       .single()
-      .then(({ data }: { data: { plan_status: string; is_trial_expired: boolean; trial_days_remaining: number } | null }) => {
+      .then(({ data }: { data: TrialStatus | null }) => {
         if (!data) return;
         if (data.plan_status !== "trial") return;
 

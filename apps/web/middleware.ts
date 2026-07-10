@@ -6,6 +6,8 @@ const PUBLIC_ROUTES = ["/login", "/signup", "/demo", "/auth/callback", "/auth/co
 const AUTH_ROUTES = ["/login", "/signup"];
 
 export async function middleware(request: NextRequest) {
+  // Pathname'i downstream server component'lere ilet (layout guard kullanır)
+  request.headers.set("x-pathname", request.nextUrl.pathname);
   let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -34,6 +36,15 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const pathname = request.nextUrl.pathname;
+
+  // Auth route'ları (/auth/logout, /auth/callback, /auth/confirm ...) HER ZAMAN
+  // geçsin — rol kontrolü ve athlete guard'dan MUAF. Supabase session yönetimi
+  // (getUser + supabaseResponse cookie'leri) yukarıda zaten çalıştı; burada
+  // yalnızca rol-bazlı REDIRECT atlanır. KRİTİK: athlete guard aksi halde
+  // /auth/logout'u /programs'a redirect edip çıkışı sonsuz döngüye sokuyordu.
+  if (pathname.startsWith("/auth/")) {
+    return supabaseResponse;
+  }
 
   // Invite sayfası her zaman erişilebilir (davet token'ı doğrulanır sayfada)
   if (pathname.startsWith("/invite")) {
@@ -73,16 +84,34 @@ export async function middleware(request: NextRequest) {
     return supabaseResponse;
   }
 
-  // Membership bilgisini cookie'den oku, yoksa DB'den çek ve yaz
+  // Membership bilgisini cookie'den oku, yoksa DB'den çek ve yaz.
+  // KRİTİK: cache yalnızca cookie'deki aiq_uid mevcut kullanıcıyla eşleşirse
+  // geçerlidir. Aksi halde (farklı kullanıcı giriş yaptı / bayat cookie) DB'den
+  // taze rol çekilir — böylece önceki kullanıcının rolü miras kalmaz.
+  const cachedUid = request.cookies.get("aiq_uid")?.value;
   const cachedRole = request.cookies.get("aiq_role")?.value;
   const cachedOrgId = request.cookies.get("aiq_org_id")?.value;
 
-  if (!cachedRole || !cachedOrgId) {
-    const { data: membership } = await supabase
-      .from("memberships")
-      .select("role, org_id, team_id")
-      .eq("user_id", user.id)
-      .single();
+  const cacheValid =
+    cachedUid === user.id && Boolean(cachedRole) && Boolean(cachedOrgId);
+
+  if (!cacheValid) {
+    // Service role key ile fetch — RLS bypass, edge-compatible
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+    const membershipRes = await fetch(
+      `${supabaseUrl}/rest/v1/memberships?user_id=eq.${user.id}&select=role,org_id,team_id&limit=1`,
+      {
+        headers: {
+          apikey: serviceKey,
+          Authorization: `Bearer ${serviceKey}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+    const membershipRows: { role: string; org_id: string; team_id: string | null }[] =
+      membershipRes.ok ? await membershipRes.json() : [];
+    const membership = membershipRows[0] ?? null;
 
     if (!membership) {
       // Üyeliği olmayan kullanıcı — login'e yönlendir
@@ -100,6 +129,7 @@ export async function middleware(request: NextRequest) {
       maxAge: 60 * 60 * 8, // 8 saat
     };
 
+    supabaseResponse.cookies.set("aiq_uid", user.id, cookieOpts);
     supabaseResponse.cookies.set("aiq_role", membership.role, cookieOpts);
     supabaseResponse.cookies.set("aiq_org_id", membership.org_id, cookieOpts);
     if (membership.team_id) {
@@ -108,23 +138,45 @@ export async function middleware(request: NextRequest) {
         membership.team_id,
         cookieOpts
       );
+    } else {
+      // Yeni kullanıcının team_id'si yoksa önceki kullanıcının bayat
+      // aiq_team_id cookie'sini temizle.
+      supabaseResponse.cookies.set("aiq_team_id", "", {
+        ...cookieOpts,
+        maxAge: 0,
+      });
     }
+  }
+
+  const role = supabaseResponse.cookies.get("aiq_role")?.value ?? cachedRole;
+
+  // ATHLETE GUARD (asıl güvenlik): Sporcu web'de SADECE kendi yayınlanmış
+  // programını salt-okunur görür. İzin verilen tek yol /programs ve
+  // /programs/[id] (detay). Program oluşturma/düzenleme ve diğer tüm
+  // dashboard sayfaları bloklanır → /programs'a redirect.
+  if (role === "athlete") {
+    const isBlocked =
+      pathname === "/programs/new" || pathname.endsWith("/edit");
+    const isAllowed = pathname.startsWith("/programs") && !isBlocked;
+
+    if (!isAllowed) {
+      return NextResponse.redirect(new URL("/programs", request.url));
+    }
+    return supabaseResponse;
   }
 
   // /dashboard sadece admin rolüne açık
   if (pathname === "/dashboard" || pathname.startsWith("/dashboard/")) {
-    const role = supabaseResponse.cookies.get("aiq_role")?.value ?? cachedRole;
     if (role !== "admin") {
-      const dest = role === "athlete" ? "/program" : "/athletes";
+      const dest = role === "athlete" ? "/programs" : "/athletes";
       return NextResponse.redirect(new URL(dest, request.url));
     }
   }
 
   // /settings sadece admin rolüne açık
   if (pathname.startsWith("/settings")) {
-    const role = supabaseResponse.cookies.get("aiq_role")?.value ?? cachedRole;
     if (role !== "admin") {
-      const dest = role === "athlete" ? "/program" : "/athletes";
+      const dest = role === "athlete" ? "/programs" : "/athletes";
       return NextResponse.redirect(new URL(dest, request.url));
     }
   }
@@ -143,7 +195,7 @@ function getRoleDestination(
     case "coach":
       return "/athletes";
     case "athlete":
-      return "/program";
+      return "/programs";
     default:
       return "/";
   }

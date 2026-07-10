@@ -10,7 +10,6 @@ import {
 import { useRouter } from "expo-router";
 import { supabase } from "@/lib/supabase";
 import { useAthleteProfile } from "@/lib/hooks/useAthleteProfile";
-import { registerForPushNotifications } from "@/lib/notifications";
 import type { Database } from "@athleteiq/db/types";
 
 type WearableConnection =
@@ -124,23 +123,6 @@ export default function ProfileScreen() {
     );
   };
 
-  const handleRegisterPush = async () => {
-    if (!athlete) return;
-    const token = await registerForPushNotifications();
-    if (token) {
-      await supabase.from("athlete_push_tokens").upsert(
-        { athlete_id: athlete.id, token, platform: "expo" },
-        { onConflict: "athlete_id,token" }
-      );
-      Alert.alert("Başarılı", "Bildirimler etkinleştirildi.");
-    } else {
-      Alert.alert(
-        "İzin Gerekli",
-        "Bildirim izni verilmedi. Ayarlardan etkinleştirebilirsiniz."
-      );
-    }
-  };
-
   const handleSignOut = async () => {
     Alert.alert("Çıkış Yap", "Hesabınızdan çıkmak istiyor musunuz?", [
       { text: "İptal", style: "cancel" },
@@ -230,22 +212,6 @@ export default function ProfileScreen() {
             onConnect={() => router.push("/(tabs)/profile/connect-polar" as never)}
             onDisconnect={() => handleDisconnect("polar")}
           />
-        </View>
-
-        {/* Bildirimler */}
-        <View className="bg-white rounded-2xl p-4 mb-4 shadow-sm">
-          <Text className="text-gray-900 font-semibold mb-1">Bildirimler</Text>
-          <Text className="text-gray-400 text-sm mb-3">
-            Koçunuz program yayınladığında bildirim alın.
-          </Text>
-          <TouchableOpacity
-            className="bg-blue-50 rounded-xl py-3 items-center"
-            onPress={handleRegisterPush}
-          >
-            <Text className="text-blue-700 font-medium text-sm">
-              Bildirimleri Etkinleştir
-            </Text>
-          </TouchableOpacity>
         </View>
 
         {/* Çıkış */}

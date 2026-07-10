@@ -5,22 +5,22 @@ import { Label } from "@athleteiq/ui/components/label";
 import type { OrgExerciseCategory } from "@athleteiq/db/queries/exercises";
 
 const MOVEMENT_PATTERNS = [
-  { value: "horizontal_push", label: "Yatay İtiş" },
-  { value: "vertical_push", label: "Dikey İtiş" },
-  { value: "horizontal_pull", label: "Yatay Çekiş" },
-  { value: "vertical_pull", label: "Dikey Çekiş" },
-  { value: "hip_hinge_bilateral", label: "Kalça Menteşe (İki Bacak)" },
-  { value: "hip_hinge_unilateral", label: "Kalça Menteşe (Tek Bacak)" },
-  { value: "knee_dominant_bilateral", label: "Diz Dominant (İki Bacak)" },
-  { value: "knee_dominant_unilateral", label: "Diz Dominant (Tek Bacak)" },
-  { value: "rotation", label: "Rotasyon" },
-  { value: "anti_rotation", label: "Anti-Rotasyon" },
-  { value: "jump_land", label: "Zıplama / İniş" },
-  { value: "locomotion", label: "Hareket / Koşu" },
-  { value: "core_stability", label: "Core Stabilitesi" },
-  { value: "loaded_carry", label: "Yüklü Taşıma" },
-  { value: "sport_specific", label: "Spora Özgü" },
-  { value: "mobility_flexibility", label: "Mobilite / Esneklik" },
+  { value: "horizontal_push", label: "Horizontal Push" },
+  { value: "vertical_push", label: "Vertical Push" },
+  { value: "horizontal_pull", label: "Horizontal Pull" },
+  { value: "vertical_pull", label: "Vertical Pull" },
+  { value: "hip_hinge_bilateral", label: "Hip Hinge (Bilateral)" },
+  { value: "hip_hinge_unilateral", label: "Hip Hinge (Unilateral)" },
+  { value: "knee_dominant_bilateral", label: "Knee Dominant (Bilateral)" },
+  { value: "knee_dominant_unilateral", label: "Knee Dominant (Unilateral)" },
+  { value: "rotation", label: "Rotation" },
+  { value: "anti_rotation", label: "Anti-Rotation" },
+  { value: "jump_land", label: "Jump & Land" },
+  { value: "locomotion", label: "Locomotion" },
+  { value: "core_stability", label: "Core Stability" },
+  { value: "loaded_carry", label: "Loaded Carry" },
+  { value: "sport_specific", label: "Sport Specific" },
+  { value: "mobility_flexibility", label: "Mobility & Flexibility" },
 ];
 
 const LOAD_TYPES = [
