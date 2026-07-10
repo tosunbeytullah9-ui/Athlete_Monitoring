@@ -45,3 +45,6 @@ test-results/
 .DS_Store
 *.log
 .turbo/
+
+# Stray nested React Navigation template scaffold (not part of monorepo)
+/AthleteIQ/
