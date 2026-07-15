@@ -1,7 +1,7 @@
 # AthleteIQ — Proje Durumu
 
-> Son güncelleme: 2026-07-01 (Bug PARTİ 4 — Kozmetik + son temizlik: mobile realtime unpublish düzeltildi, landing layout import kokusu `MarketingShell`'e çıkarıldı, ölü yük kolonları program builder'a bağlandı (yük tipi seçici), PROGRESS.md/BUGS.md finalize. Envanter: 0 açık kod bug'ı.)
-> Son commit: `171ad8a` — 2026-06-28
+> Son güncelleme: 2026-07-15 (**Mobil donma çözüldü** — css-interop `printUpgradeWarning` deep-stringify HANG'i patch'lendi; Program ekranı + 4 tab cihazda çalışıyor. Realtime publication boştu, dolduruldu. Detay: § Bilinen Sorunlar #4)
+> Son commit: `14562dd` — 2026-07-01
 > Bu dosya her session başında okunmalı. CLAUDE.md ile birlikte projenin hafızasıdır.
 
 ---
@@ -188,8 +188,17 @@ pnpm --filter="@athleteiq/web" exec eslint .   # yalnızca web (0 error, 21 warn
 
 4. ~~**🔴 Mobile NavigationContainer hatası**~~ — **ÇÖZÜLDÜ** (2026-06-29):
    - **Expo CLI `Body is unusable` bug:** `@expo/cli@54.0.25` cache layer'ı response body stream'ini iki kez tüketiyordu. Fix: `EXPO_NO_CACHE=1` + `cross-env` ile `package.json dev` script'ine eklendi.
-   - **Navigation context hatası:** `index.tsx`'teki `router.replace()` navigation ref hazır olmadan çalışıyordu. Fix: `<Redirect href="...">` component'ine çevrildi.
+   - **Navigation context hatası — GERÇEK kök neden (2026-07-13):** İlk "fix" (`router.replace` → `<Redirect>`) yeterli değildi; hata Adım 2 sonrası geri geldi. İzolasyon teşhisiyle gerçek suçlu bulundu: **`react-native-css-interop@0.2.6`** (NativeWind motoru) `render-component.js` dev-only `stringify` path'i, prop serialize ederken React Navigation'ın throwing getter'ına çarpıp çöküyordu ("navigation context" yan hata idi). **Fix:** `patches/react-native-css-interop@0.2.6.patch` (stringify `try/catch`) + `pnpm-workspace.yaml patchedDependencies`. Cihazda doğrulandı. Detay: MOBILE_STATUS.md + memory `mobile-nav-blocker`. App kodu (Slot + Redirect) orijinal haliyle çalışıyor.
    - **Bonus:** `(tabs)/_layout.tsx` Tabs.Screen name'leri `program/index` → `program` formatına düzeltildi. `program/` ve `profile/` klasörlerine nested `_layout.tsx` eklendi.
+   - **🔴 İKİNCİ BUG — DONMA (2026-07-15) — ÇÖZÜLDÜ.** Crash fix'i çökmeyi durdurdu ama **donmayı değil**. Belirti: Program ekranı ilk frame'de donuk (bayat "Henüz program yok"), **tab'lara basınca hiçbir şey olmuyor** — ama JS çalışıyor (fetch `count=2`, React `programs=2` render ediyor). Yani React doğru, **native Fabric surface tek frame sonrası commit etmiyor**.
+     - **Kök neden:** aynı dosya — `printUpgradeWarning` → `stringify(originalProps)`. `originalProps.children` = React element ağacı → `_owner`/context üzerinden **Fiber + React Navigation obje grafiğinin tamamı**. try/catch çökmeyi engelledi ama stringify bu devasa grafı **her re-render'da geziyor** → JS thread kilitleniyor → yüzey donuyor, dokunuş işlenmiyor. Sadece dev/Expo Go.
+     - **Neden sadece Program?** Sadece haftalık görünüm (7 gün × iç içe dinamik className) css-interop "upgrade" uyarısını tetikleyecek yoğunlukta. Recovery/Yarışmalar/Profil (aynı hook + className + fetch) sorunsuz → navigator, react-native-screens, reanimated, gesture-handler **suçsuz**.
+     - **Fix:** `printUpgradeWarning` artık props'u derin stringify etmiyor, sığ `Object.keys()` logluyor. Patch dosyası güncellendi + `pnpm install` ile doğrulandı.
+     - **İzolasyon yöntemi:** Program ekranını inline-style minimal sayaç+buton'a indir (çalıştı → navigator sağlam), sonra `programs.length===0` dalını zorla (donma kalktı → suçlu karmaşık render). Ekranda 1sn sayaç + render log: **log'da artıyor ama ekranda artmıyorsa → native donma** (JS değil).
+
+6. ~~**Realtime "Bağlanıyor"da takılı**~~ — **ÇÖZÜLDÜ** (2026-07-15): `supabase_realtime` publication'ı **tamamen boştu** → `postgres_changes` aboneliği asla `SUBSCRIBED` olmuyordu. `training_programs` + `training_sessions` publication'a eklendi.
+
+7. ~~**Mobile 20 TS hatası**~~ — **Geçersiz** (2026-07-15): `@athleteiq/db` zaten `apps/mobile/package.json`'da bildirilmiş; `tsc --noEmit` → **0 hata**. MOBILE_STATUS.md'deki 20-hata iddiası bayattı.
 
 5. ~~**Seed verisi yetersiz**~~ — **Tamamlandı** (2026-06-26): 2 yeni takım (Ritmik Takım, Trampolin Takım) ve 4 yeni sporcu eklendi. Toplam: 4 takım, 5 sporcu.
 

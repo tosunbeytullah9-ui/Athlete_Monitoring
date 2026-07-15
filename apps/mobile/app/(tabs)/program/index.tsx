@@ -78,6 +78,8 @@ export default function ProgramScreen() {
       return;
     }
 
+    // Önce veriyi çek — realtime aboneliğinden bağımsız. Subscribe takılsa bile
+    // program listesi gelir.
     fetchPrograms(athlete.id, athlete.team_id);
 
     // Realtime: TÜM training_programs değişikliklerini dinle (filtre YOK).
