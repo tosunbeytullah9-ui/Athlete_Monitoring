@@ -9,6 +9,7 @@
     "lint": "expo lint"
   },
   "dependencies": {
+    "@athleteiq/db": "workspace:*",
     "@expo/vector-icons": "^15.0.2",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@supabase/supabase-js": "^2.49.4",
@@ -26,12 +27,15 @@
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.16.0",
     "react-native-svg": "15.12.1",
+    "react-native-worklets": "0.5.1",
     "tailwindcss": "^3.4.0"
   },
   "devDependencies": {
     "@babel/core": "^7.25.0",
+    "babel-preset-expo": "~54.0.11",
     "@types/node": "^20.0.0",
     "@types/react": "~19.1.10",
+    "@types/react-native": "^0.73.0",
     "cross-env": "^10.1.0",
     "eslint": "^9.0.0",
     "eslint-config-expo": "~10.0.0",

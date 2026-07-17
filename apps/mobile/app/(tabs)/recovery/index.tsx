@@ -110,7 +110,10 @@ export default function RecoveryScreen() {
   }
 
   useEffect(() => {
-    if (!athlete) return;
+    if (!athlete) {
+      setLoading(false);
+      return;
+    }
     fetchData(athlete.id);
   }, [athlete]);
 

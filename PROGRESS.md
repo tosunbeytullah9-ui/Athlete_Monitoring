@@ -1,7 +1,7 @@
 # AthleteIQ — Proje Durumu
 
-> Son güncelleme: 2026-07-01 (Bug PARTİ 4 — Kozmetik + son temizlik: mobile realtime unpublish düzeltildi, landing layout import kokusu `MarketingShell`'e çıkarıldı, ölü yük kolonları program builder'a bağlandı (yük tipi seçici), PROGRESS.md/BUGS.md finalize. Envanter: 0 açık kod bug'ı.)
-> Son commit: `171ad8a` — 2026-06-28
+> Son güncelleme: 2026-07-15 (**Mobil donma çözüldü** — css-interop `printUpgradeWarning` deep-stringify HANG'i patch'lendi; Program ekranı + 4 tab cihazda çalışıyor. Realtime publication boştu, dolduruldu. Detay: § Bilinen Sorunlar #4)
+> Son commit: `14562dd` — 2026-07-01
 > Bu dosya her session başında okunmalı. CLAUDE.md ile birlikte projenin hafızasıdır.
 
 ---
@@ -109,6 +109,9 @@
 | 008 | rls_signup | ✅ Uygulandı |
 | 009 | security_fixes | ✅ Uygulandı |
 | 010 | trial | ✅ Uygulandı (eski `007_trial.sql`, PARTİ 3'te yeniden adlandırıldı) |
+| 011 | realtime | ✅ Uygulandı (2026-07-15 — daha önce elle SQL ile yapılmıştı, migration olarak kayda geçmemişti; AŞAMA 2'de push edildi, idempotent do-block olduğu için etkisiz geçti) |
+| 012 | wellness | ✅ Uygulandı (2026-07-15 — Readiness AŞAMA 2 Adım 1: `wellness_checkins` + RLS + realtime) |
+| 013 | readiness_scores | ✅ Uygulandı (2026-07-15 — ŞEMA only, motor sonraki iterasyon) |
 
 > **PARTİ 3 not:** `007_superset_columns.sql` silindi (005 zaten kapsıyor). Local dosya adları cloud geçmişindeki timestamp-prefix'lerle sapmıştı — kullanıcı onayıyla `supabase migration repair` çalıştırıldı (6 timestamp `reverted`, local 005/006/008/009/010 `applied`). `migration list` artık tam hizalı (Local = Remote). Şema tarafında etki yok.
 
@@ -180,16 +183,33 @@ pnpm --filter="@athleteiq/web" exec eslint .   # yalnızca web (0 error, 21 warn
 
 ## Bilinen Sorunlar
 
-1. **RESEND_API_KEY eksik** — Edge Functions deploy edildi ancak `RESEND_API_KEY` Supabase secret olarak set edilmedi. `resend.com`'dan key alınıp `supabase secrets set RESEND_API_KEY=re_xxx --project-ref nlmwcygmbbxmfpsubvmh` çalıştırılması gerekiyor. Bu yapılana kadar davet emaili gitmiyor ama membership kaydı oluşuyor.
+1. ~~**RESEND_API_KEY eksik**~~ — **KAYIT YANLIŞTI, DÜZELTİLDİ** (2026-07-15, Readiness AŞAMA 2 Adım 0):
+   - `RESEND_API_KEY` secret'ta **mevcut** (2026-06-27'de set edilmiş). Bu madde bayattı.
+   - **Asıl bulgu: davet e-postasının Resend ile İLGİSİ YOK.** [invite-member/index.ts:81](supabase/functions/invite-member/index.ts#L81) `supabaseAdmin.auth.admin.inviteUserByEmail()` çağırıyor — e-postayı **Supabase Auth'un kendi SMTP'si** gönderiyor. Fonksiyon `RESEND_API_KEY`'e hiç dokunmuyor. Repo genelinde Resend'i kullanan tek yer [demo-request/route.ts](apps/web/app/api/demo-request/route.ts) ve o da `apps/web/.env.local`'den okuyor, Supabase secret'ından değil. Yani Supabase'deki `RESEND_API_KEY` secret'ını şu an **hiçbir kod tüketmiyor**.
+   - **Davetin gerçek koşulu:** Supabase Auth → SMTP ayarı. Varsayılan Supabase SMTP yalnızca **proje ekibi üyelerine** gönderir ve saatte ~2 e-posta ile sınırlıdır → gerçek sporcu davetleri için **custom SMTP şart** (Resend burada SMTP sağlayıcısı olarak kullanılabilir, ama bu Dashboard ayarı, Edge Function secret'ı değil).
+   - Ayrıca Dashboard → Auth → URL Configuration → Redirect URLs'e `/auth/confirm` eklenmiş olmalı.
 
-2. **Admin /dashboard yönlendirme** — Coach rolüyle giriş yapan kullanıcı `/dashboard`'a gitmeye çalışırsa `/athletes`'e yönlendiriliyor (middleware'de tanımlı, beklenen davranış). Ancak `/dashboard` doğrudan admin-only olarak işaretli, bu confusion yaratabilir.
+2. **🔴 Davet edilen sporcu `athletes` kaydına BAĞLANMIYOR** (2026-07-15'te bulundu) — Davet akışı yalnızca `memberships` satırı oluşturuyor; `athletes.user_id`'yi **hiçbir yerde set etmiyor** (ne [invite-member](supabase/functions/invite-member/index.ts) ne [auth/confirm](apps/web/app/auth/confirm/route.ts)). Sonuç: davet e-postası çalışsa bile sporcu check-in yapamaz — wellness/ACWR RLS'i `athletes.user_id = auth.uid()` üzerinden çalışıyor. Canlı durum: 6 sporcunun 4'ünde `user_id` null; ayrıca İBRAHİM ÇOLAK'ın `user_id`'si var ama **membership'i yok** (ters yönde kopukluk). Readiness katmanının veri üretebilmesi için bu bağın kurulması gerekiyor (davet payload'ına `athlete_id` eklemek veya `/auth/confirm`'de e-posta ile eşleştirmek).
+
+2b. **Admin /dashboard yönlendirme** — Coach rolüyle giriş yapan kullanıcı `/dashboard`'a gitmeye çalışırsa `/athletes`'e yönlendiriliyor (middleware'de tanımlı, beklenen davranış). Ancak `/dashboard` doğrudan admin-only olarak işaretli, bu confusion yaratabilir. → Readiness komuta merkezi bu yüzden `/dashboard`'a değil yeni `/readiness` route'una konacak (READINESS_PLAN.md §5.1).
 
 3. ~~**Realtime aboneliği**~~ — **Tamamlandı** (2026-06-26): `athletes-client.tsx` ve `programs-client.tsx`'e Supabase Realtime eklendi. `is_published=eq.true` filter ile UPDATE event gelince `router.refresh()` + toast notification tetikleniyor.
 
 4. ~~**🔴 Mobile NavigationContainer hatası**~~ — **ÇÖZÜLDÜ** (2026-06-29):
    - **Expo CLI `Body is unusable` bug:** `@expo/cli@54.0.25` cache layer'ı response body stream'ini iki kez tüketiyordu. Fix: `EXPO_NO_CACHE=1` + `cross-env` ile `package.json dev` script'ine eklendi.
-   - **Navigation context hatası:** `index.tsx`'teki `router.replace()` navigation ref hazır olmadan çalışıyordu. Fix: `<Redirect href="...">` component'ine çevrildi.
+   - **Navigation context hatası — GERÇEK kök neden (2026-07-13):** İlk "fix" (`router.replace` → `<Redirect>`) yeterli değildi; hata Adım 2 sonrası geri geldi. İzolasyon teşhisiyle gerçek suçlu bulundu: **`react-native-css-interop@0.2.6`** (NativeWind motoru) `render-component.js` dev-only `stringify` path'i, prop serialize ederken React Navigation'ın throwing getter'ına çarpıp çöküyordu ("navigation context" yan hata idi). **Fix:** `patches/react-native-css-interop@0.2.6.patch` (stringify `try/catch`) + `pnpm-workspace.yaml patchedDependencies`. Cihazda doğrulandı. Detay: MOBILE_STATUS.md + memory `mobile-nav-blocker`. App kodu (Slot + Redirect) orijinal haliyle çalışıyor.
    - **Bonus:** `(tabs)/_layout.tsx` Tabs.Screen name'leri `program/index` → `program` formatına düzeltildi. `program/` ve `profile/` klasörlerine nested `_layout.tsx` eklendi.
+   - **🔴 İKİNCİ BUG — DONMA (2026-07-15) — ÇÖZÜLDÜ.** Crash fix'i çökmeyi durdurdu ama **donmayı değil**. Belirti: Program ekranı ilk frame'de donuk (bayat "Henüz program yok"), **tab'lara basınca hiçbir şey olmuyor** — ama JS çalışıyor (fetch `count=2`, React `programs=2` render ediyor). Yani React doğru, **native Fabric surface tek frame sonrası commit etmiyor**.
+     - **Kök neden:** aynı dosya — `printUpgradeWarning` → `stringify(originalProps)`. `originalProps.children` = React element ağacı → `_owner`/context üzerinden **Fiber + React Navigation obje grafiğinin tamamı**. try/catch çökmeyi engelledi ama stringify bu devasa grafı **her re-render'da geziyor** → JS thread kilitleniyor → yüzey donuyor, dokunuş işlenmiyor. Sadece dev/Expo Go.
+     - **Neden sadece Program?** Sadece haftalık görünüm (7 gün × iç içe dinamik className) css-interop "upgrade" uyarısını tetikleyecek yoğunlukta. Recovery/Yarışmalar/Profil (aynı hook + className + fetch) sorunsuz → navigator, react-native-screens, reanimated, gesture-handler **suçsuz**.
+     - **Fix:** `printUpgradeWarning` artık props'u derin stringify etmiyor, sığ `Object.keys()` logluyor. Patch dosyası güncellendi + `pnpm install` ile doğrulandı.
+     - **İzolasyon yöntemi:** Program ekranını inline-style minimal sayaç+buton'a indir (çalıştı → navigator sağlam), sonra `programs.length===0` dalını zorla (donma kalktı → suçlu karmaşık render). Ekranda 1sn sayaç + render log: **log'da artıyor ama ekranda artmıyorsa → native donma** (JS değil).
+
+6. ~~**Realtime "Bağlanıyor"da takılı**~~ — **ÇÖZÜLDÜ** (2026-07-15): `supabase_realtime` publication'ı **tamamen boştu** → `postgres_changes` aboneliği asla `SUBSCRIBED` olmuyordu. `training_programs` + `training_sessions` publication'a eklendi.
+
+7. ~~**Mobile 20 TS hatası**~~ — **Geçersiz** (2026-07-15): `@athleteiq/db` zaten `apps/mobile/package.json`'da bildirilmiş; `tsc --noEmit` → **0 hata**. MOBILE_STATUS.md'deki 20-hata iddiası bayattı.
+
+8. **🟡 `acwr_logs` UPDATE politikası eksik** (READINESS_PLAN.md §8.1, kapsam dışı) — `acwr_logs`'ta yalnızca INSERT + SELECT politikası var, ama [packages/db/queries/acwr.ts](packages/db/queries/acwr.ts) `upsert(onConflict: "athlete_id,log_date")` kullanıyor. Upsert çakışınca UPDATE'e döner → politika olmadığı için RLS reddeder → **aynı güne ikinci ACWR logu sessizce başarısız oluyor**. Tabloda 1 satır olduğu için fark edilmemiş. `wellness_checkins` bu hatayı tekrarlamıyor (012'de UPDATE politikası var). Ayrı bir migration ile düzeltilmeli.
 
 5. ~~**Seed verisi yetersiz**~~ — **Tamamlandı** (2026-06-26): 2 yeni takım (Ritmik Takım, Trampolin Takım) ve 4 yeni sporcu eklendi. Toplam: 4 takım, 5 sporcu.
 

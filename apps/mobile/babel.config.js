@@ -4,8 +4,7 @@ module.exports = function (api) {
     presets: [
       ["babel-preset-expo", { jsxImportSource: "nativewind" }],
     ],
-    plugins: [
-      "react-native-reanimated/plugin",
-    ],
+    // Not: reanimated/worklets babel plugin'i babel-preset-expo (SDK 54)
+    // tarafından otomatik eklenir — elle eklemek çift-uygulama yaratır.
   };
 };

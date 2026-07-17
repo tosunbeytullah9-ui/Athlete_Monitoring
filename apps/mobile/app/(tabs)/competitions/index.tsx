@@ -103,7 +103,10 @@ export default function CompetitionsScreen() {
   }
 
   useEffect(() => {
-    if (!athlete) return;
+    if (!athlete) {
+      setLoading(false);
+      return;
+    }
     fetchCompetitions(athlete.org_id);
   }, [athlete]);
 
