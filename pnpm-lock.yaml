@@ -309,6 +309,12 @@ importers:
         specifier: ^2.4.0
         version: 2.6.1
     devDependencies:
+      '@types/react':
+        specifier: 19.2.17
+        version: 19.2.17
+      '@types/react-dom':
+        specifier: 19.2.3
+        version: 19.2.3(@types/react@19.2.17)
       typescript:
         specifier: ^5.5.0
         version: 5.9.3
