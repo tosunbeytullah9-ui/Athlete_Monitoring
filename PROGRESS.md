@@ -1,6 +1,7 @@
 # AthleteIQ — Proje Durumu
 
-> Son güncelleme: 2026-07-15 (**Mobil donma çözüldü** — css-interop `printUpgradeWarning` deep-stringify HANG'i patch'lendi; Program ekranı + 4 tab cihazda çalışıyor. Realtime publication boştu, dolduruldu. Detay: § Bilinen Sorunlar #4)
+> Son güncelleme: 2026-07-18 (**Parti 2.1 — exercise_sets şeması** — set bazlı yoğunluk takibi için yeni tablo + RLS, cloud'a push edildi ve doğrulandı. Detay: § Parti 2.1)
+> Önceki: 2026-07-15 (**Mobil donma çözüldü** — css-interop `printUpgradeWarning` deep-stringify HANG'i patch'lendi; Program ekranı + 4 tab cihazda çalışıyor. Realtime publication boştu, dolduruldu. Detay: § Bilinen Sorunlar #4)
 > Son commit: `14562dd` — 2026-07-01
 > Bu dosya her session başında okunmalı. CLAUDE.md ile birlikte projenin hafızasıdır.
 
@@ -19,6 +20,19 @@
 - `supabase/seed.sql` — Başlangıç test verisi
 - `packages/db/types.ts` — Supabase'den üretilmiş TypeScript tipleri
 - `packages/db/queries/` — athletes, programs, acwr, competitions, tests, wearables, teams, memberships, **exercises** sorguları
+
+### Parti 2.1 — exercise_sets şeması ✅ (2026-07-18)
+- `supabase/migrations/014_exercise_sets.sql` — set bazlı yoğunluk takibi. Tamamen ADDITIVE:
+  - **exercise_sets** tablosu: `exercise_id` (FK cascade) + `set_number` (unique birlikte), `reps`, `duration_sec`, `load_kg`, `percent_1rm`, `rpe`, `is_bodyweight`, `band_resistance`, `created_at`.
+  - RLS: `exercises_select`/`exercises_write` (002_rls.sql) ile birebir aynı mantık, `exercise_id` üzerinden bir join hop'u fazla.
+  - `exercises.completed_at` ve `training_sessions.athlete_session_notes` eklendi (her ikisi de null, henüz UI/RLS yazma yolu yok — bilinçli, Parti 2.2'de).
+  - Eski kolonlar (`sets`, `reps`, `duration_sec`, `load_kg`, `load_percent`, `load_percent_1rm`, `rpe_target`) SİLİNMEDİ, `DEPRECATED` yorumu eklendi — UI (Parti 2.2) geçene kadar paralel yaşıyor.
+  - Veri migration'ı: 5 mevcut `exercises` satırı → 13 `exercise_sets` satırı (`SUM(sets)` ile birebir). Cloud'da doğrulandı (satır sayısı + örnek satır karşılaştırması).
+  - RLS doğrulaması: İBRAHİM ÇOLAK hesabıyla simülasyon (gerçek login değil — `set local request.jwt.claims`) → kendi takımının (Hipertrofi + "aaaaaaaaaaa" programları) 7 set'ini görüyor, diğer takımın published programındaki ("asdasdasd", Arnold Press + Ayı Yürüyüşü, 6 set) hiçbirini görmüyor. İzolasyon çalışıyor.
+  - `pnpm --filter web build` temiz geçti (sadece önceden var olan lint uyarıları, migration'la ilgisiz).
+- **Not — "yukarıdaki şema" bulunamadı:** Görev talimatı exercise_sets için önceden verilmiş bir şemaya atıfta bulunuyordu ama bu konuşmada/repoda öyle bir şema yoktu (muhtemelen özetlenmiş/düşmüş bir önceki mesaj). Şema, veri migration adımındaki alan listesinden (reps/duration_sec/load_kg/percent_1rm/rpe/is_bodyweight/band_resistance) ve mevcut `exercises` kolon tipleriyle birebir eşleştirilerek yeniden inşa edildi. **Kullanıcı doğrulamalı** — özellikle `band_resistance` (text seçildi, mevcut veride örnek yok) ve `created_at` dışında bookkeeping kolonu eklenmediği (updated_at yok, `exercises` da yok çünkü).
+- **Yan bulgu 1 (düzeltildi):** `006_exercise_seed.sql:249` — `array[]` tip cast'i olmadan kullanılmış ("Leg Extension" secondary_muscles), fresh `supabase db reset`'i `ERROR: cannot determine type of empty array (42P18)` ile kırıyordu. `array[]::text[]` yapıldı. Cloud etkilenmedi (135 satır zaten doğruydu, migration remote'ta zaten "applied" işaretli — push bu dosyayı tekrar çalıştırmaz).
+- **Yan bulgu 2 (DÜZELTİLMEDİ — karar bekliyor):** `008_rls_signup.sql` ve `009_security_fixes.sql`, `organizations.owner_id`/`plan_status`/`trial_ends_at` kolonlarına referans veriyor ama bu kolonlar ancak `010_trial.sql`'de ekleniyor. Fresh `db reset` bu yüzden 008'de `column "owner_id" does not exist` ile patlıyor (remote etkilenmiyor — gerçek tarihsel apply sırası farklıydı, PARTİ 3'ün migration repair'i bunu gizledi). Local'de sadece elle önden kolon ekleyip `migration up` ile atlatıldı, dosyalar değiştirilmedi. Kalıcı çözüm (numaraları kaydırmak / ara migration eklemek) migration geçmişini etkileyeceğinden burada yapılmadı — talimat isterse ayrı bir görev olarak ele alınmalı.
 
 ### Self-Serve Signup & Trial Sistemi ✅ (2026-06-29)
 - `apps/web/app/(auth)/signup/page.tsx` + `signup-form.tsx` — 4 adımlı kayıt akışı (hesap → org → takım → tebrikler)
@@ -112,6 +126,7 @@
 | 011 | realtime | ✅ Uygulandı (2026-07-15 — daha önce elle SQL ile yapılmıştı, migration olarak kayda geçmemişti; AŞAMA 2'de push edildi, idempotent do-block olduğu için etkisiz geçti) |
 | 012 | wellness | ✅ Uygulandı (2026-07-15 — Readiness AŞAMA 2 Adım 1: `wellness_checkins` + RLS + realtime) |
 | 013 | readiness_scores | ✅ Uygulandı (2026-07-15 — ŞEMA only, motor sonraki iterasyon) |
+| 014 | exercise_sets | ✅ Uygulandı (2026-07-18 — Parti 2.1, set bazlı yoğunluk takibi, additive) |
 
 > **PARTİ 3 not:** `007_superset_columns.sql` silindi (005 zaten kapsıyor). Local dosya adları cloud geçmişindeki timestamp-prefix'lerle sapmıştı — kullanıcı onayıyla `supabase migration repair` çalıştırıldı (6 timestamp `reverted`, local 005/006/008/009/010 `applied`). `migration list` artık tam hizalı (Local = Remote). Şema tarafında etki yok.
 
