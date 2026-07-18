@@ -246,7 +246,7 @@ values
  array['all_sports'], array['hack_squat_machine','barbell'], 'absolute_kg', false, 'intermediate'),
 
 ('Leg Extension', 'Bacak Uzatma', 'knee_dominant_bilateral',
- array['quadriceps'], array[],
+ array['quadriceps'], array[]::text[],
  array['all_sports'], array['leg_extension_machine'], 'absolute_kg', false, 'beginner'),
 
 ('Box Squat', 'Kutu Squat', 'knee_dominant_bilateral',
