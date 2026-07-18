@@ -1,6 +1,7 @@
 # AthleteIQ — Proje Durumu
 
-> Son güncelleme: 2026-07-18 (**Parti 2.1 — exercise_sets şeması** — set bazlı yoğunluk takibi için yeni tablo + RLS, cloud'a push edildi ve doğrulandı. Detay: § Parti 2.1)
+> Son güncelleme: 2026-07-18 (**Parti 2.2.B — session_rpe şeması (atıl, Parti 6/7'de bağlanacak)** — `training_sessions.session_rpe` kolonu eklendi, cloud'a push edildi ve doğrulandı. Detay: § Parti 2.2.B)
+> Önceki: 2026-07-18 (**Parti 2.1 — exercise_sets şeması** — set bazlı yoğunluk takibi için yeni tablo + RLS, cloud'a push edildi ve doğrulandı. Detay: § Parti 2.1)
 > Önceki: 2026-07-15 (**Mobil donma çözüldü** — css-interop `printUpgradeWarning` deep-stringify HANG'i patch'lendi; Program ekranı + 4 tab cihazda çalışıyor. Realtime publication boştu, dolduruldu. Detay: § Bilinen Sorunlar #4)
 > Son commit: `14562dd` — 2026-07-01
 > Bu dosya her session başında okunmalı. CLAUDE.md ile birlikte projenin hafızasıdır.
@@ -20,6 +21,12 @@
 - `supabase/seed.sql` — Başlangıç test verisi
 - `packages/db/types.ts` — Supabase'den üretilmiş TypeScript tipleri
 - `packages/db/queries/` — athletes, programs, acwr, competitions, tests, wearables, teams, memberships, **exercises** sorguları
+
+### Parti 2.2.B — session_rpe şeması (atıl, Parti 6/7'de bağlanacak) ✅ (2026-07-18)
+- `supabase/migrations/016_session_rpe.sql` — `training_sessions.session_rpe` (smallint, null, `CHECK between 1 and 10`), additive. Şu an hiçbir UI'dan doldurulmuyor, `acwr_logs`/`acwr-client.tsx` mekanizmasına bağlanmıyor — bağlantı Parti 6 (ACWR/Readiness birleştirme) ve Parti 7 (mobil "yaptım" akışı) kapsamında yapılacak.
+- Local'de `supabase migration up` ile test edildi, cloud'a (`nlmwcygmbbxmfpsubvmh`) `supabase db push` ile uygulandı. `migration list` Local=Remote (016 dahil).
+- Cloud doğrulaması (`information_schema` + `pg_constraint`): kolon `smallint`/nullable, CHECK constraint `(session_rpe >= 1) AND (session_rpe <= 10)`, kolon yorumu mevcut.
+- `pnpm --filter web build` temiz geçti (yalnızca önceden var olan lint uyarıları, migration'la ilgisiz) — beklenen sonuç, çünkü hiçbir UI bu kolonu henüz okumuyor/yazmıyor.
 
 ### Parti 2.1 — exercise_sets şeması ✅ (2026-07-18)
 - `supabase/migrations/014_exercise_sets.sql` — set bazlı yoğunluk takibi. Tamamen ADDITIVE:
@@ -127,6 +134,8 @@
 | 012 | wellness | ✅ Uygulandı (2026-07-15 — Readiness AŞAMA 2 Adım 1: `wellness_checkins` + RLS + realtime) |
 | 013 | readiness_scores | ✅ Uygulandı (2026-07-15 — ŞEMA only, motor sonraki iterasyon) |
 | 014 | exercise_sets | ✅ Uygulandı (2026-07-18 — Parti 2.1, set bazlı yoğunluk takibi, additive) |
+| 015 | exercise_sets_fixes | ✅ Uygulandı (2026-07-18 — Parti 2.1 doğrulama düzeltmeleri: `notes` kolonu + `band_resistance` CHECK) |
+| 016 | session_rpe | ✅ Uygulandı (2026-07-18 — Parti 2.2.B, `training_sessions.session_rpe`, atıl/additive) |
 
 > **PARTİ 3 not:** `007_superset_columns.sql` silindi (005 zaten kapsıyor). Local dosya adları cloud geçmişindeki timestamp-prefix'lerle sapmıştı — kullanıcı onayıyla `supabase migration repair` çalıştırıldı (6 timestamp `reverted`, local 005/006/008/009/010 `applied`). `migration list` artık tam hizalı (Local = Remote). Şema tarafında etki yok.
 
