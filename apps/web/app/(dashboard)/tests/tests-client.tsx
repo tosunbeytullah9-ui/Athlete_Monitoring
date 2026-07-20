@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, X, Activity, ArrowUp, ArrowDown, Minus, Trash2 } from "lucide-react";
+import { Plus, X, Activity, ArrowUp, ArrowDown, Minus, Trash2, Dumbbell } from "lucide-react";
 import { Button } from "@athleteiq/ui/components/button";
 import { Input } from "@athleteiq/ui/components/input";
 import { Label } from "@athleteiq/ui/components/label";
@@ -24,6 +24,12 @@ import {
 } from "@/components/ui/table";
 import { createClient } from "@/lib/supabase/client";
 import { createTest, deleteTest } from "@athleteiq/db/queries/tests";
+import {
+  create1RMRecord,
+  type Athlete1RMRecord,
+  type PlatformExercise,
+  type OrgExercise,
+} from "@athleteiq/db/queries/exercises";
 import { useUserContext } from "@/lib/hooks/useUserContext";
 import type { Tables } from "@athleteiq/db/types";
 
@@ -36,6 +42,9 @@ interface Props {
   orgId: string;
   tests: TestRow[];
   athletes: Athlete[];
+  platformExercises: PlatformExercise[];
+  orgExercises: OrgExercise[];
+  athleteMaxes: Athlete1RMRecord[];
 }
 
 // =============================================
@@ -156,6 +165,45 @@ function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+// =============================================
+// 1RM kayıtları — athlete_1rm_records
+// =============================================
+interface ExerciseOption {
+  key: string; // `${source}:${id}` — form değeri, submit'te lookup için
+  id: string;
+  name: string;
+  source: "platform" | "org";
+}
+
+const oneRmSchema = z.object({
+  athlete_id: z.string().min(1, "Sporcu zorunludur"),
+  exercise_key: z.string().min(1, "Egzersiz zorunludur"),
+  weight_kg: z.coerce.number({ invalid_type_error: "Geçerli bir değer girin" }).positive("Pozitif bir değer girin"),
+  test_date: z.string().min(1, "Tarih zorunludur"),
+  notes: z.string().optional(),
+});
+
+type OneRmForm = z.input<typeof oneRmSchema>;
+
+// getAthleteMaxes()'in tek-sporcu dedup mantığıyla aynı (en güncel test_date
+// kazanır) ama org genelinde çoklu sporcuyu kapsayacak şekilde athlete_id de
+// anahtara dahil edilir — yeni kayıt eklendiğinde local state'i tutarlı tutar.
+function dedupeLatestMaxes(records: Athlete1RMRecord[]): Athlete1RMRecord[] {
+  const sorted = [...records].sort((a, b) =>
+    a.test_date < b.test_date ? 1 : a.test_date > b.test_date ? -1 : 0
+  );
+  const seen = new Set<string>();
+  const out: Athlete1RMRecord[] = [];
+  for (const r of sorted) {
+    const key = `${r.athlete_id}:${r.exercise_name}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      out.push(r);
+    }
+  }
+  return out;
+}
+
 // Aynı sporcu+test için önceki sonuca göre trend hesapla.
 // rows: tarihe göre AZALAN sıralı tüm satırlar (en yeni başta).
 function computeTrend(
@@ -185,13 +233,24 @@ function computeTrend(
   return improved ? "up" : "down";
 }
 
-export function TestsClient({ orgId, tests: initialTests, athletes }: Props) {
+export function TestsClient({
+  orgId,
+  tests: initialTests,
+  athletes,
+  platformExercises,
+  orgExercises,
+  athleteMaxes: initialAthleteMaxes,
+}: Props) {
   const { role } = useUserContext();
   const canManage = role === "admin" || role === "coach";
 
   const [tests, setTests] = useState<TestRow[]>(initialTests);
   const [showForm, setShowForm] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+
+  const [maxes, setMaxes] = useState<Athlete1RMRecord[]>(initialAthleteMaxes);
+  const [showRmForm, setShowRmForm] = useState(false);
+  const [rmSubmitError, setRmSubmitError] = useState<string | null>(null);
 
   // Filtreler
   const [filterAthlete, setFilterAthlete] = useState<string>("all");
@@ -257,6 +316,77 @@ export function TestsClient({ orgId, tests: initialTests, athletes }: Props) {
       await deleteTest(supabase, id);
     } catch {
       setTests(prev); // geri al
+    }
+  }
+
+  // 1RM kayıtları — egzersiz seçimi platform_exercises + org_exercises'tan,
+  // mevcut kategori/tip kademeli dropdown deseniyle tutarlı basit <select>.
+  const exerciseOptions = useMemo<ExerciseOption[]>(() => {
+    const platform = platformExercises.map((e) => ({
+      key: `platform:${e.id}`,
+      id: e.id,
+      name: e.name,
+      source: "platform" as const,
+    }));
+    const org = orgExercises.map((e) => ({
+      key: `org:${e.id}`,
+      id: e.id,
+      name: e.name,
+      source: "org" as const,
+    }));
+    return [...org, ...platform].sort((a, b) => a.name.localeCompare(b.name));
+  }, [platformExercises, orgExercises]);
+
+  const athleteNameMap = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const a of athletes) m[a.id] = a.full_name;
+    return m;
+  }, [athletes]);
+
+  const sortedMaxes = useMemo(
+    () =>
+      [...maxes].sort((a, b) => {
+        const an = athleteNameMap[a.athlete_id] ?? "";
+        const bn = athleteNameMap[b.athlete_id] ?? "";
+        return an !== bn ? an.localeCompare(bn) : a.exercise_name.localeCompare(b.exercise_name);
+      }),
+    [maxes, athleteNameMap]
+  );
+
+  const {
+    register: registerRm,
+    handleSubmit: handleRmSubmit,
+    reset: resetRm,
+    formState: { errors: rmErrors, isSubmitting: rmIsSubmitting },
+  } = useForm<OneRmForm>({
+    resolver: zodResolver(oneRmSchema),
+    defaultValues: { test_date: today() },
+  });
+
+  async function onRmSubmit(data: OneRmForm) {
+    setRmSubmitError(null);
+    try {
+      const picked = exerciseOptions.find((e) => e.key === data.exercise_key);
+      if (!picked) throw new Error("Egzersiz bulunamadı");
+
+      const supabase = createClient();
+      const created = await create1RMRecord(supabase, {
+        athlete_id: data.athlete_id,
+        exercise_id: picked.id,
+        exercise_source: picked.source,
+        exercise_name: picked.name,
+        weight_kg: Number(data.weight_kg),
+        test_date: data.test_date,
+        notes: data.notes?.trim() ? data.notes.trim() : null,
+      });
+
+      setMaxes((prev) => dedupeLatestMaxes([created, ...prev]));
+      resetRm({ test_date: today(), athlete_id: "", exercise_key: "" });
+      setShowRmForm(false);
+    } catch (err: unknown) {
+      setRmSubmitError(
+        err instanceof Error ? err.message : "1RM kaydı eklenirken hata oluştu."
+      );
     }
   }
 
@@ -554,6 +684,158 @@ export function TestsClient({ orgId, tests: initialTests, athletes }: Props) {
           </CardContent>
         </Card>
       )}
+
+      {/* 1RM Kayıtları */}
+      <div className="space-y-4 pt-2">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-bold flex items-center gap-2">
+              <Dumbbell className="h-5 w-5" />
+              1RM Kayıtları
+            </h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              {maxes.length} sporcu-egzersiz kombinasyonu — en güncel maksimal kuvvet kayıtları
+            </p>
+          </div>
+          {canManage && (
+            <Button onClick={() => setShowRmForm((v) => !v)} variant="outline">
+              {showRmForm ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+              {showRmForm ? "İptal" : "Yeni Kayıt Ekle"}
+            </Button>
+          )}
+        </div>
+
+        {showRmForm && canManage && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Yeni 1RM Kaydı</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleRmSubmit(onRmSubmit)} className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5 col-span-2 md:col-span-1">
+                    <Label htmlFor="rm-athlete">Sporcu *</Label>
+                    <select
+                      id="rm-athlete"
+                      {...registerRm("athlete_id")}
+                      className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                    >
+                      <option value="">Seçin</option>
+                      {athletes.map((a) => (
+                        <option key={a.id} value={a.id}>
+                          {a.full_name}
+                        </option>
+                      ))}
+                    </select>
+                    {rmErrors.athlete_id && (
+                      <p className="text-xs text-destructive">{rmErrors.athlete_id.message}</p>
+                    )}
+                  </div>
+
+                  <div className="space-y-1.5 col-span-2 md:col-span-1">
+                    <Label htmlFor="rm-exercise">Egzersiz *</Label>
+                    <select
+                      id="rm-exercise"
+                      {...registerRm("exercise_key")}
+                      className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                    >
+                      <option value="">Seçin</option>
+                      {exerciseOptions.map((e) => (
+                        <option key={e.key} value={e.key}>
+                          {e.name}
+                        </option>
+                      ))}
+                    </select>
+                    {rmErrors.exercise_key && (
+                      <p className="text-xs text-destructive">{rmErrors.exercise_key.message}</p>
+                    )}
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="rm-weight">Ağırlık (kg) *</Label>
+                    <Input
+                      id="rm-weight"
+                      type="number"
+                      step="any"
+                      {...registerRm("weight_kg")}
+                      placeholder="100"
+                    />
+                    {rmErrors.weight_kg && (
+                      <p className="text-xs text-destructive">{rmErrors.weight_kg.message}</p>
+                    )}
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="rm-date">Tarih *</Label>
+                    <Input id="rm-date" type="date" {...registerRm("test_date")} />
+                    {rmErrors.test_date && (
+                      <p className="text-xs text-destructive">{rmErrors.test_date.message}</p>
+                    )}
+                  </div>
+
+                  <div className="space-y-1.5 col-span-2">
+                    <Label htmlFor="rm-notes">Not</Label>
+                    <Input
+                      id="rm-notes"
+                      {...registerRm("notes")}
+                      placeholder="İsteğe bağlı not..."
+                    />
+                  </div>
+                </div>
+
+                {rmSubmitError && (
+                  <p className="text-xs text-destructive">{rmSubmitError}</p>
+                )}
+
+                <div className="flex justify-end gap-3">
+                  <Button type="button" variant="outline" onClick={() => setShowRmForm(false)}>
+                    İptal
+                  </Button>
+                  <Button type="submit" disabled={rmIsSubmitting}>
+                    {rmIsSubmitting ? "Kaydediliyor..." : "Kaydı Ekle"}
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        )}
+
+        {sortedMaxes.length === 0 ? (
+          <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-12 text-center">
+            <Dumbbell className="h-10 w-10 text-muted-foreground mb-3" />
+            <p className="text-sm text-muted-foreground">Henüz 1RM kaydı eklenmemiş.</p>
+          </div>
+        ) : (
+          <Card>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Sporcu</TableHead>
+                    <TableHead>Egzersiz</TableHead>
+                    <TableHead className="text-right">En Güncel</TableHead>
+                    <TableHead>Tarih</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {sortedMaxes.map((m) => (
+                    <TableRow key={m.id}>
+                      <TableCell className="font-medium">
+                        {athleteNameMap[m.athlete_id] ?? "—"}
+                      </TableCell>
+                      <TableCell>{m.exercise_name}</TableCell>
+                      <TableCell className="text-right tabular-nums">{m.weight_kg} kg</TableCell>
+                      <TableCell className="whitespace-nowrap text-muted-foreground">
+                        {new Date(m.test_date).toLocaleDateString("tr-TR")}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        )}
+      </div>
     </div>
   );
 }

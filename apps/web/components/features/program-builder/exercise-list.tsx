@@ -21,6 +21,7 @@ import type {
   PlatformExercise,
   OrgExercise,
   OrgExerciseCategory,
+  Athlete1RMRecord,
 } from "@athleteiq/db/queries/exercises";
 
 export const SUPERSET_GROUPS = ["", "A", "B", "C", "D", "E", "F", "G"] as const;
@@ -431,6 +432,7 @@ interface ExerciseListProps<TFieldValues extends ProgramFormShape> {
   platformExercises: PlatformExercise[];
   orgExercises: OrgExercise[];
   categories: OrgExerciseCategory[];
+  athleteMaxes?: Athlete1RMRecord[];
 }
 
 export function ExerciseList<TFieldValues extends ProgramFormShape>({
@@ -442,6 +444,7 @@ export function ExerciseList<TFieldValues extends ProgramFormShape>({
   platformExercises,
   orgExercises,
   categories,
+  athleteMaxes,
 }: ExerciseListProps<TFieldValues>) {
   const { fields, append, remove } = useFieldArray({
     control,
@@ -561,6 +564,7 @@ export function ExerciseList<TFieldValues extends ProgramFormShape>({
           platformExercises={platformExercises}
           orgExercises={orgExercises}
           categories={categories}
+          athleteMaxes={athleteMaxes}
           onClose={() => setPickerOpen(false)}
           onPick={(picked) => {
             append(

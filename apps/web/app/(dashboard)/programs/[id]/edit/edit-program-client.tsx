@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm, useFieldArray } from "react-hook-form";
 import type { FieldErrors } from "react-hook-form";
@@ -14,7 +14,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@athleteiq/ui/componen
 import { createClient } from "@/lib/supabase/client";
 import { updateProgram } from "@athleteiq/db/queries/programs";
 import type { Database, Tables } from "@athleteiq/db/types";
-import type { PlatformExercise, OrgExercise, OrgExerciseCategory } from "@athleteiq/db/queries/exercises";
+import type {
+  PlatformExercise,
+  OrgExercise,
+  OrgExerciseCategory,
+  Athlete1RMRecord,
+} from "@athleteiq/db/queries/exercises";
 import { ExerciseList, exerciseSchema } from "@/components/features/program-builder/exercise-list";
 import type { ExerciseSetFormValues } from "@/components/features/program-builder/exercise-list";
 
@@ -96,6 +101,7 @@ interface Props {
   platformExercises?: PlatformExercise[];
   orgExercises?: OrgExercise[];
   categories?: OrgExerciseCategory[];
+  athleteMaxes?: Athlete1RMRecord[];
 }
 
 const STEPS = ["Temel Bilgiler", "Seanslar", "Özet"];
@@ -108,6 +114,7 @@ export function EditProgramClient({
   platformExercises = [],
   orgExercises = [],
   categories = [],
+  athleteMaxes = [],
 }: Props) {
   const router = useRouter();
   const [step, setStep] = useState(0);
@@ -191,7 +198,18 @@ export function EditProgramClient({
 
   const scope = watch("scope");
   const selectedTeamId = watch("team_id");
+  const selectedAthleteId = watch("athlete_id");
   const watchedSessions = watch("sessions");
+
+  // "Son max" rozeti yalnızca bireysel (athlete) programlarda anlamlı —
+  // takım programının tek bir sporcusu yok, bu yüzden team scope'ta boş kalır.
+  const pickerAthleteMaxes = useMemo(
+    () =>
+      scope === "athlete" && selectedAthleteId
+        ? athleteMaxes.filter((m) => m.athlete_id === selectedAthleteId)
+        : [],
+    [athleteMaxes, scope, selectedAthleteId]
+  );
 
   const filteredAthletes =
     scope === "team" && selectedTeamId
@@ -631,6 +649,7 @@ export function EditProgramClient({
                         platformExercises={platformExercises}
                         orgExercises={orgExercises}
                         categories={categories}
+                        athleteMaxes={pickerAthleteMaxes}
                       />
                     </CardContent>
                   )}

@@ -1,7 +1,12 @@
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { NewProgramClient } from "./new-program-client";
-import { getPlatformExercises, getOrgExercises, getOrgCategories } from "@athleteiq/db/queries/exercises";
+import {
+  getPlatformExercises,
+  getOrgExercises,
+  getOrgCategories,
+  getAthleteMaxes,
+} from "@athleteiq/db/queries/exercises";
 
 export default async function NewProgramPage() {
   const supabase = await createClient();
@@ -29,14 +34,24 @@ export default async function NewProgramPage() {
     getOrgCategories(supabase, orgId),
   ]);
 
+  const athletes: { id: string; full_name: string; team_id: string }[] =
+    athletesResult.data ?? [];
+  // getAthleteMaxes tek bir athleteId alıyor (org-wide eşdeğeri yok) —
+  // her sporcu için ayrı çağrılıp birleştiriliyor (bkz. PROGRESS.md Parti 2.2.E).
+  const athleteMaxesLists = await Promise.all(
+    athletes.map((a) => getAthleteMaxes(supabase, a.id))
+  );
+  const athleteMaxes = athleteMaxesLists.flat();
+
   return (
     <NewProgramClient
       orgId={orgId}
       teams={teamsResult.data ?? []}
-      athletes={athletesResult.data ?? []}
+      athletes={athletes}
       platformExercises={platformExercises}
       orgExercises={orgExercises}
       categories={categories}
+      athleteMaxes={athleteMaxes}
     />
   );
 }
