@@ -1,7 +1,7 @@
-# AthleteIQ — Bug Envanteri (FİNALİZE — tüm partiler tamamlandı)
+# AthleteIQ — Bug Envanteri
 
-> Oluşturulma: 2026-06-30 (salt-tespit) · Son güncelleme: 2026-07-18 (Parti 2.1 doğrulaması sırasında 1 yeni WONTFIX bulgu eklendi)
-> **Durum:** 19 bulgunun 17'si ✅ FIXED. 1 madde (leaked-password) kod değil, kullanıcının elle yapacağı bir Supabase Dashboard ayarı (⏳). 1 madde bilinçli olarak ertelendi (⚠️ WONTFIX, Parti 8'de çözülecek). **Açık kod bug'ı: 1 (WONTFIX, ertelendi).**
+> Oluşturulma: 2026-06-30 (salt-tespit) · Son güncelleme: 2026-07-20 (Parti 2.2.C — ExerciseList refactor doğrulaması sırasında 3 yeni AÇIK bulgu eklendi, Orta öncelik)
+> **Durum:** 22 bulgunun 17'si ✅ FIXED. 1 madde (leaked-password) kod değil, kullanıcının elle yapacağı bir Supabase Dashboard ayarı (⏳). **Açık kod bug'ı: 4** — 1'i bilinçli olarak ertelendi (⚠️ WONTFIX, Parti 8'de çözülecek), 3'ü yeni bulundu ve henüz ele alınmadı (🔴 AÇIK, Parti 2.2.D veya sonrası kapsamında değerlendirilecek).
 > Düzeltmeler 4 partide (PARTİ 1–4), her biri kullanıcı onayıyla ve tsc/build/eslint doğrulamasıyla uygulandı.
 
 ## Tarama Yöntemi
@@ -73,6 +73,21 @@
 
 - **✅ FIXED (PARTİ 1)** — **Supabase: `whoop_cycles` + `polar_sync_state` RLS policy'siz** (advisor INFO) : Her iki tabloda RLS açık ama hiç policy yok → bütün erişimler bloke. → `009_security_fixes.sql` ile athlete-sahiplik select/insert policy'leri eklendi (advisor INFO temizlendi). : `002_rls.sql`/`004_wearables.sql` bu tablolar için policy tanımlamamış. : Wearable sync aktifleşmeden önce bu tablolara athlete-sahiplik policy'leri ekle (şu an dormant, sync açılınca patlar).
 
+- **🔴 AÇIK — bulundu: 2026-07-20, Parti 2.2.C (ExerciseList refactor) doğrulaması sırasında** — **new/edit program formu: `week_number` boş bırakılırsa sessiz submit reddi** (`apps/web/app/(dashboard)/programs/new/new-program-client.tsx`, `apps/web/app/(dashboard)/programs/[id]/edit/edit-program-client.tsx`)
+  - `week_number` inputu boş bırakılırsa `register(..., { valueAsNumber: true })` `NaN` üretiyor. `programSchema`'daki `z.number().int().min(1).max(52).optional().or(z.literal(undefined))` NaN'ı hiçbir dalda kabul etmiyor (ne `z.number()` ne `z.literal(undefined)` eşleşiyor) → zod validasyonu reddediyor. `handleSubmit(onSubmit)` çağrısına `onInvalid` handler'ı verilmediği için form **hiçbir hata mesajı göstermeden** sessizce submit olmuyor — koç "Programı Kaydet"e basıyor, hiçbir şey olmuyor, neden bilmiyor.
+  - Playwright ile canlı doğrulandı: alan boşken submit'e tıklamak network isteği bile göndermiyor; `handleSubmit`'e geçici bir `onInvalid` logger eklenince hata `{"week_number":{"message":"Expected number, received nan"}}` olarak görüldü.
+  - ExerciseList'in kendisini değil, çevresindeki form/schema kodunu etkiliyor — Parti 2.2.C kapsamı dışında bırakıldı (dokunulmadı), burada kayda geçiriliyor. Fix Parti 2.2.D veya ayrı bir görevde ele alınmalı.
+
+- **🔴 AÇIK — bulundu: 2026-07-20, Parti 2.2.C (ExerciseList refactor) doğrulaması sırasında** — **new/edit program formu: `training_sessions.duration_min` boş bırakılırsa sessiz submit reddi** (`apps/web/app/(dashboard)/programs/new/new-program-client.tsx`, `apps/web/app/(dashboard)/programs/[id]/edit/edit-program-client.tsx`)
+  - `week_number` ile birebir aynı kök neden: seans kartındaki "Süre (dakika)" alanı boş bırakılırsa `valueAsNumber: true` `NaN` üretiyor, `sessionSchema`'daki `duration_min: z.number().int().positive().optional().or(z.literal(undefined))` bunu reddediyor, `onInvalid` handler'ı olmadığı için form sessizce submit olmuyor.
+  - Playwright ile canlı doğrulandı: `RHF_INVALID {"sessions":[{"duration_min":{"message":"Expected number, received nan", ...}}]}`.
+  - ExerciseList kapsamı dışında (seans seviyesi alan, egzersiz grid'i değil) — dokunulmadı, kayda geçiriliyor.
+
+- **🔴 AÇIK — bulundu: 2026-07-20, Parti 2.2.C (ExerciseList refactor) doğrulaması sırasında** — **new/edit program formu: `start_date`/`end_date` boş bırakılırsa Postgres insert reddi** (`apps/web/app/(dashboard)/programs/new/new-program-client.tsx`, `apps/web/app/(dashboard)/programs/[id]/edit/edit-program-client.tsx`)
+  - `start_date`/`end_date` alanları boş bırakılırsa `register("start_date")` `""` (boş string) döndürüyor; `programSchema`'da `z.string().optional()` bunu geçerli kabul ediyor (boş string de bir string). `onSubmit`'teki `start_date: data.start_date ?? null` yalnızca `null`/`undefined`'ı yakalıyor, `""`'ı yakalamıyor — sonuç olarak Postgres'in `date` kolonuna `""` gönderiliyor ve insert `invalid input syntax for type date: ""` hatasıyla reddediliyor.
+  - Playwright ile canlı doğrulandı: form validasyonunu geçiyor (title/team/week_number/phase doluyken), ama Supabase REST `POST /training_programs` **400** dönüyor, uygulama bunu `alert()` ile kullanıcıya gösteriyor (bu kısmı sessiz değil — diğer ikisinin aksine en azından bir hata mesajı çıkıyor, ama mesaj teknik ve kullanıcı için anlamsız: "invalid input syntax for type date: \"\"").
+  - Fix: `?? null` yerine `|| null` (veya boş string'i açıkça `null`'a çeviren bir yardımcı) kullanılmalı — ama bu değişiklik ExerciseList'in kapsamı dışında, dokunulmadı.
+
 ---
 
 ## Düşük (kozmetik / tamamlanmamış)
@@ -102,9 +117,11 @@
 |----------|------|---------|
 | 🔴 **Kritik** | 3 | ✅ `/program` route uyumsuzluğu (PARTİ 1), ✅ rol cookie miras bug'ı (ROL CACHE), ✅ logout guard bloklama (LOGOUT GUARD) |
 | 🟠 **Yüksek** | 3 | ✅ `/tests` stub (PARTİ 2), ✅ `/wearables` stub (PARTİ 2), ✅ `packages/ui` TS2322 (PARTİ 2) |
-| 🟡 **Orta** | 5 | ✅ bayat types.ts (PARTİ 2), ✅ 007 migration çakışması (PARTİ 3), ✅ ESLint config yok (PARTİ 3), ✅ SECURITY DEFINER view (PARTİ 1), ✅ RLS policy'siz 2 tablo (PARTİ 1) |
+| 🟡 **Orta** | 8 | ✅ bayat types.ts (PARTİ 2), ✅ 007 migration çakışması (PARTİ 3), ✅ ESLint config yok (PARTİ 3), ✅ SECURITY DEFINER view (PARTİ 1), ✅ RLS policy'siz 2 tablo (PARTİ 1), 🔴 `week_number` sessiz submit reddi (AÇIK, Parti 2.2.C'de bulundu), 🔴 `duration_min` sessiz submit reddi (AÇIK, Parti 2.2.C'de bulundu), 🔴 `start_date`/`end_date` boşsa Postgres insert reddi (AÇIK, Parti 2.2.C'de bulundu) |
 | ⚪ **Düşük** | 8 | ✅ landing layout import (PARTİ 4), ✅ search_path mutable (PARTİ 1), ⏳ leaked-password (kullanıcı aksiyonu), ✅ ölü kolonlar (PARTİ 4), ✅ migration isim sapması (PARTİ 3), ✅ PROGRESS.md drift (PARTİ 4), ✅ mobile realtime unpublish (PARTİ 4), ⚠️ 008/009 trial kolon sıralaması (WONTFIX, Parti 8'e ertelendi) |
-| **TOPLAM** | **19** | **17 ✅ FIXED**, 1 açık kod bug'ı (⚠️ WONTFIX, Parti 8'e ertelendi), 1 ⏳ kullanıcı aksiyonu (Supabase Dashboard ayarı) |
+| **TOPLAM** | **22** | **17 ✅ FIXED**, 4 açık kod bug'ı (1 ⚠️ WONTFIX Parti 8'e ertelendi, 3 🔴 AÇIK Parti 2.2.C'de bulundu — new/edit program formunun sessiz validasyon/insert reddi sorunları), 1 ⏳ kullanıcı aksiyonu (Supabase Dashboard ayarı) |
+
+> **PARTİ 2.2.C (2026-07-20) — ExerciseList refactor doğrulaması:** ExerciseList'i paylaşılan bileşene taşıma sırasında (görev kapsamı dışında, çevresindeki form/schema kodunda) 3 yeni AÇIK bug bulundu — `week_number` ve `duration_min` boş bırakılırsa `NaN` yüzünden sessiz submit reddi, `start_date`/`end_date` boş bırakılırsa `""` Postgres'e gönderilip insert reddediliyor. Üçü de fix edilmedi (kapsam dışı), yalnızca kayda geçirildi.
 
 > **PARTİ 4 (2026-07-01) — Kozmetik + son temizlik:** İş 1 (mobile realtime unpublish) ✅, İş 2 (landing layout import → `MarketingShell`) ✅, İş 3 (ölü kolonlar → yük tipi seçici, hem new hem edit builder + detay görünümü) ✅, İş 4 (leaked-password) → kullanıcıya adım adım talimat verildi (manuel Dashboard ayarı), İş 5 (PROGRESS.md + BUGS.md finalize) ✅.
 >
