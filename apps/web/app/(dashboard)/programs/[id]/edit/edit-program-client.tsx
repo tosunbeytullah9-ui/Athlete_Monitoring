@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm, useFieldArray } from "react-hook-form";
+import type { FieldErrors } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Plus, Trash2, ArrowLeft, ArrowRight, Check, AlertTriangle } from "lucide-react";
@@ -15,15 +16,37 @@ import { updateProgram } from "@athleteiq/db/queries/programs";
 import type { Database, Tables } from "@athleteiq/db/types";
 import type { PlatformExercise, OrgExercise, OrgExerciseCategory } from "@athleteiq/db/queries/exercises";
 import { ExerciseList, exerciseSchema } from "@/components/features/program-builder/exercise-list";
+import type { ExerciseSetFormValues } from "@/components/features/program-builder/exercise-list";
 
 type ProgramRow = Tables<"training_programs"> & {
   training_sessions: (Tables<"training_sessions"> & {
-    exercises: Tables<"exercises">[];
+    exercises: (Tables<"exercises"> & { exercise_sets?: Tables<"exercise_sets">[] })[];
   })[];
 };
 type SessionInsert = Database["public"]["Tables"]["training_sessions"]["Insert"];
 type SessionRow = Database["public"]["Tables"]["training_sessions"]["Row"];
 type ExerciseInsert = Database["public"]["Tables"]["exercises"]["Insert"];
+type ExerciseRow = Database["public"]["Tables"]["exercises"]["Row"];
+type ExerciseSetInsert = Database["public"]["Tables"]["exercise_sets"]["Insert"];
+
+// exercise_sets tablosunda ayrı bir load_type kolonu yok — hangi kolonun dolu
+// olduğundan türetilir (bkz. new-program-client.tsx'teki simetrik yorum).
+function deriveLoadType(row: Tables<"exercise_sets">): ExerciseSetFormValues["load_type"] {
+  if (row.band_resistance) return "band";
+  if (row.is_bodyweight) return "bodyweight";
+  if (row.percent_1rm != null) return "percent_1rm";
+  return "kg";
+}
+
+function setToInsertColumns(set: ExerciseSetFormValues) {
+  return {
+    load_kg: set.load_type === "kg" ? set.load_kg ?? null : null,
+    percent_1rm: set.load_type === "percent_1rm" ? set.percent_1rm ?? null : null,
+    is_bodyweight: set.load_type === "bodyweight",
+    band_resistance: set.load_type === "band" ? set.band_resistance ?? null : null,
+    rpe: set.rpe ?? null,
+  };
+}
 
 const DAY_LABELS = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
 
@@ -107,25 +130,33 @@ export function EditProgramClient({
           const ex = e as typeof e & {
             superset_group?: string | null;
             superset_order?: number | null;
-            load_type?: string | null;
-            load_percent_1rm?: number | null;
-            rpe_target?: number | null;
           };
-          const loadType = (ex.load_type as ProgramForm["sessions"][number]["exercises"][number]["load_type"]) ?? "absolute_kg";
+          const dbSets = (ex.exercise_sets ?? [])
+            .slice()
+            .sort((a, b) => a.set_number - b.set_number);
+          const isDurationBased = dbSets.some((row) => row.duration_sec != null);
           return {
             name: ex.name,
             category: ex.category ?? undefined,
-            sets: ex.sets ?? undefined,
-            reps: ex.reps ?? undefined,
-            load_type: loadType,
-            load_kg: ex.load_kg ?? undefined,
-            load_percent_1rm: ex.load_percent_1rm ?? undefined,
-            rpe_target: ex.rpe_target ?? undefined,
+            is_duration_based: isDurationBased,
             rest_sec: ex.rest_sec ?? undefined,
-            unit: (ex.unit as ProgramForm["sessions"][number]["exercises"][number]["unit"]) ?? "kg",
             notes: ex.notes ?? undefined,
             superset_group: ex.superset_group ?? undefined,
             superset_order: ex.superset_order ?? 0,
+            exercise_sets:
+              dbSets.length > 0
+                ? dbSets.map((row) => ({
+                    reps: row.reps ?? undefined,
+                    duration_sec: row.duration_sec ?? undefined,
+                    load_type: deriveLoadType(row),
+                    load_kg: row.load_kg ?? undefined,
+                    percent_1rm: row.percent_1rm ?? undefined,
+                    band_resistance:
+                      (row.band_resistance as ExerciseSetFormValues["band_resistance"]) ?? undefined,
+                    rpe: row.rpe ?? undefined,
+                    notes: row.notes ?? undefined,
+                  }))
+                : [{ load_type: "kg" as const }],
           };
         }),
     }));
@@ -177,6 +208,11 @@ export function EditProgramClient({
     setActiveSession(sessionFields.length);
   }
 
+  function onInvalid(formErrors: FieldErrors<ProgramForm>) {
+    console.error("Form validasyon hatası:", formErrors);
+    alert("Formda eksik veya hatalı alanlar var. Kırmızı işaretli/boş bırakılan alanları kontrol edin.");
+  }
+
   async function onSubmit(data: ProgramForm) {
     setIsSubmitting(true);
     try {
@@ -208,7 +244,11 @@ export function EditProgramClient({
       };
 
       const exerciseBuilder = supabase.from("exercises") as unknown as {
-        insert: (v: ExerciseInsert[]) => Promise<{ error: unknown }>;
+        insert: (v: ExerciseInsert) => { select: () => { single: () => Promise<{ data: ExerciseRow | null; error: unknown }> } };
+      };
+
+      const exerciseSetBuilder = supabase.from("exercise_sets") as unknown as {
+        insert: (v: ExerciseSetInsert[]) => Promise<{ error: unknown }>;
       };
 
       for (let i = 0; i < data.sessions.length; i++) {
@@ -229,28 +269,36 @@ export function EditProgramClient({
 
         if (sessionError || !dbSession) throw sessionError;
 
-        if (session.exercises.length > 0) {
-          const exercisesPayload: ExerciseInsert[] = session.exercises.map((ex, idx) => ({
+        for (let exIdx = 0; exIdx < session.exercises.length; exIdx++) {
+          const ex = session.exercises[exIdx]!;
+          const exercisePayload: ExerciseInsert = {
             session_id: dbSession.id,
             name: ex.name,
             category: ex.category ?? null,
-            sets: ex.sets ?? null,
-            reps: ex.reps ?? null,
-            load_type: ex.load_type ?? "absolute_kg",
-            load_kg: ex.load_type === "absolute_kg" ? (ex.load_kg ?? null) : null,
-            load_percent_1rm:
-              ex.load_type === "percentage_1rm" ? (ex.load_percent_1rm ?? null) : null,
-            rpe_target: ex.load_type === "rpe" ? (ex.rpe_target ?? null) : null,
             rest_sec: ex.rest_sec ?? null,
-            unit: ex.unit,
             notes: ex.notes ?? null,
-            order_index: idx,
+            order_index: exIdx,
             superset_group: ex.superset_group ?? null,
             superset_order: ex.superset_order ?? 0,
+          };
+
+          const { data: dbExercise, error: exError } = await exerciseBuilder
+            .insert(exercisePayload)
+            .select()
+            .single();
+          if (exError || !dbExercise) throw exError;
+
+          const setsPayload: ExerciseSetInsert[] = ex.exercise_sets.map((set, setIdx) => ({
+            exercise_id: dbExercise.id,
+            set_number: setIdx + 1,
+            reps: ex.is_duration_based ? null : set.reps ?? null,
+            duration_sec: ex.is_duration_based ? set.duration_sec ?? null : null,
+            notes: set.notes ?? null,
+            ...setToInsertColumns(set),
           }));
 
-          const { error: exError } = await exerciseBuilder.insert(exercisesPayload);
-          if (exError) throw exError;
+          const { error: setsError } = await exerciseSetBuilder.insert(setsPayload);
+          if (setsError) throw setsError;
         }
       }
 
@@ -321,7 +369,7 @@ export function EditProgramClient({
         ))}
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)}>
+      <form onSubmit={handleSubmit(onSubmit, onInvalid)}>
         {/* ADIM 1: Temel Bilgiler */}
         {step === 0 && (
           <Card>

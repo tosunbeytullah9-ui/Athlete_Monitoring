@@ -14,9 +14,29 @@ import type { Tables } from "@athleteiq/db/types";
 
 type Program = Tables<"training_programs"> & {
   training_sessions: (Tables<"training_sessions"> & {
-    exercises: Tables<"exercises">[];
+    exercises: (Tables<"exercises"> & { exercise_sets: Tables<"exercise_sets">[] })[];
   })[];
 };
+
+const BAND_LABELS: Record<string, string> = {
+  soft: "Yumuşak",
+  medium: "Orta",
+  hard: "Sert",
+};
+
+function formatSetReps(set: Tables<"exercise_sets">): string {
+  if (set.duration_sec != null) return `${set.duration_sec} sn`;
+  if (set.reps != null) return `${set.reps} tekrar`;
+  return "—";
+}
+
+function formatSetLoad(set: Tables<"exercise_sets">): string {
+  if (set.band_resistance) return `${BAND_LABELS[set.band_resistance] ?? set.band_resistance} bant`;
+  if (set.is_bodyweight) return "Vücut ağırlığı";
+  if (set.percent_1rm != null) return `%${set.percent_1rm} 1RM`;
+  if (set.load_kg != null) return `${set.load_kg} kg`;
+  return "—";
+}
 
 interface Props {
   program: Program;
@@ -195,58 +215,68 @@ export function ProgramDetailClient({ program, athlete, team }: Props) {
                     </CardHeader>
 
                     {session.exercises.length > 0 && (
-                      <CardContent>
-                        <table className="w-full text-sm">
-                          <thead>
-                            <tr className="border-b">
-                              <th className="text-left py-1.5 pr-4 font-medium text-muted-foreground text-xs">
-                                Egzersiz
-                              </th>
-                              <th className="text-center py-1.5 px-2 font-medium text-muted-foreground text-xs">
-                                Set
-                              </th>
-                              <th className="text-center py-1.5 px-2 font-medium text-muted-foreground text-xs">
-                                Tekrar
-                              </th>
-                              <th className="text-center py-1.5 px-2 font-medium text-muted-foreground text-xs">
-                                Yük
-                              </th>
-                              <th className="text-center py-1.5 px-2 font-medium text-muted-foreground text-xs">
-                                Dinlenme
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {session.exercises
-                              .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0))
-                              .map((exercise) => (
-                                <tr key={exercise.id} className="border-b last:border-0">
-                                  <td className="py-2 pr-4">
-                                    <p className="font-medium">{exercise.name}</p>
+                      <CardContent className="space-y-3">
+                        {session.exercises
+                          .slice()
+                          .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0))
+                          .map((exercise) => {
+                            const sets = (exercise.exercise_sets ?? [])
+                              .slice()
+                              .sort((a, b) => a.set_number - b.set_number);
+
+                            return (
+                              <div key={exercise.id} className="rounded-md border p-3">
+                                <div className="flex items-start justify-between gap-2 mb-2">
+                                  <div>
+                                    <p className="font-medium text-sm">{exercise.name}</p>
                                     {exercise.notes && (
                                       <p className="text-xs text-muted-foreground">{exercise.notes}</p>
                                     )}
-                                  </td>
-                                  <td className="py-2 px-2 text-center">{exercise.sets ?? "—"}</td>
-                                  <td className="py-2 px-2 text-center">{exercise.reps ?? "—"}</td>
-                                  <td className="py-2 px-2 text-center">
-                                    {exercise.load_type === "percentage_1rm" && exercise.load_percent_1rm
-                                      ? `%${exercise.load_percent_1rm} 1RM`
-                                      : exercise.load_type === "rpe" && exercise.rpe_target
-                                      ? `RPE ${exercise.rpe_target}`
-                                      : exercise.load_kg
-                                      ? `${exercise.load_kg} ${exercise.unit ?? "kg"}`
-                                      : exercise.load_percent
-                                      ? `%${exercise.load_percent}`
-                                      : "—"}
-                                  </td>
-                                  <td className="py-2 px-2 text-center">
-                                    {exercise.rest_sec ? `${exercise.rest_sec}s` : "—"}
-                                  </td>
-                                </tr>
-                              ))}
-                          </tbody>
-                        </table>
+                                  </div>
+                                  {exercise.rest_sec && (
+                                    <span className="shrink-0 text-xs text-muted-foreground">
+                                      Dinlenme {exercise.rest_sec}s
+                                    </span>
+                                  )}
+                                </div>
+
+                                {sets.length > 0 ? (
+                                  <table className="w-full text-sm">
+                                    <thead>
+                                      <tr className="border-b">
+                                        <th className="text-left py-1 pr-2 font-medium text-muted-foreground text-xs">
+                                          Set
+                                        </th>
+                                        <th className="text-left py-1 px-2 font-medium text-muted-foreground text-xs">
+                                          Tekrar/Süre
+                                        </th>
+                                        <th className="text-left py-1 px-2 font-medium text-muted-foreground text-xs">
+                                          Yük
+                                        </th>
+                                        <th className="text-left py-1 px-2 font-medium text-muted-foreground text-xs">
+                                          RPE
+                                        </th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {sets.map((set) => (
+                                        <tr key={set.id} className="border-b last:border-0">
+                                          <td className="py-1.5 pr-2 text-xs text-muted-foreground">
+                                            {set.set_number}
+                                          </td>
+                                          <td className="py-1.5 px-2">{formatSetReps(set)}</td>
+                                          <td className="py-1.5 px-2">{formatSetLoad(set)}</td>
+                                          <td className="py-1.5 px-2">{set.rpe ?? "—"}</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                ) : (
+                                  <p className="text-xs text-muted-foreground">Set bilgisi yok.</p>
+                                )}
+                              </div>
+                            );
+                          })}
                       </CardContent>
                     )}
                   </Card>

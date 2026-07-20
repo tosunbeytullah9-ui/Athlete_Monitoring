@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm, useFieldArray } from "react-hook-form";
+import type { FieldErrors } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Plus, Trash2, ArrowLeft, ArrowRight, Check } from "lucide-react";
@@ -14,9 +15,23 @@ import { createClient } from "@/lib/supabase/client";
 import type { Database } from "@athleteiq/db/types";
 import type { PlatformExercise, OrgExercise, OrgExerciseCategory } from "@athleteiq/db/queries/exercises";
 import { ExerciseList, exerciseSchema } from "@/components/features/program-builder/exercise-list";
+import type { ExerciseSetFormValues } from "@/components/features/program-builder/exercise-list";
 
 type ProgramRow = Database["public"]["Tables"]["training_programs"]["Row"];
 type SessionRow = Database["public"]["Tables"]["training_sessions"]["Row"];
+type ExerciseRow = Database["public"]["Tables"]["exercises"]["Row"];
+
+// Set bazlı yük tipini exercise_sets kolonlarına çevirir — yalnızca seçili
+// tipin kolonu dolar, diğerleri null (temiz veri, çakışma riski yok).
+function setToInsertColumns(set: ExerciseSetFormValues) {
+  return {
+    load_kg: set.load_type === "kg" ? set.load_kg ?? null : null,
+    percent_1rm: set.load_type === "percent_1rm" ? set.percent_1rm ?? null : null,
+    is_bodyweight: set.load_type === "bodyweight",
+    band_resistance: set.load_type === "band" ? set.band_resistance ?? null : null,
+    rpe: set.rpe ?? null,
+  };
+}
 
 const DAY_LABELS = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
 
@@ -121,6 +136,11 @@ export function NewProgramClient({
     setActiveSession(sessionFields.length);
   }
 
+  function onInvalid(formErrors: FieldErrors<ProgramForm>) {
+    console.error("Form validasyon hatası:", formErrors);
+    alert("Formda eksik veya hatalı alanlar var. Kırmızı işaretli/boş bırakılan alanları kontrol edin.");
+  }
+
   async function onSubmit(data: ProgramForm) {
     setIsSubmitting(true);
     try {
@@ -168,30 +188,39 @@ export function NewProgramClient({
         if (sessionError) throw new Error(sessionError.message);
         if (!dbSession) throw new Error("Seans oluşturulamadı");
 
-        if (session.exercises.length > 0) {
-          const { error: exError } = (await db
+        for (let exIdx = 0; exIdx < session.exercises.length; exIdx++) {
+          const ex = session.exercises[exIdx]!;
+
+          const { data: dbExercise, error: exError } = (await db
             .from("exercises")
-            .insert(
-              session.exercises.map((ex, idx) => ({
-                session_id: dbSession.id,
-                name: ex.name,
-                category: ex.category ?? null,
-                sets: ex.sets ?? null,
-                reps: ex.reps ?? null,
-                load_type: ex.load_type ?? "absolute_kg",
-                load_kg: ex.load_type === "absolute_kg" ? (ex.load_kg ?? null) : null,
-                load_percent_1rm:
-                  ex.load_type === "percentage_1rm" ? (ex.load_percent_1rm ?? null) : null,
-                rpe_target: ex.load_type === "rpe" ? (ex.rpe_target ?? null) : null,
-                rest_sec: ex.rest_sec ?? null,
-                unit: ex.unit,
-                notes: ex.notes ?? null,
-                order_index: idx,
-                superset_group: ex.superset_group ?? null,
-                superset_order: ex.superset_order ?? 0,
-              }))
-            )) as { error: { message: string } | null };
+            .insert({
+              session_id: dbSession.id,
+              name: ex.name,
+              category: ex.category ?? null,
+              rest_sec: ex.rest_sec ?? null,
+              notes: ex.notes ?? null,
+              order_index: exIdx,
+              superset_group: ex.superset_group ?? null,
+              superset_order: ex.superset_order ?? 0,
+            })
+            .select()
+            .single()) as { data: ExerciseRow | null; error: { message: string } | null };
           if (exError) throw new Error(exError.message);
+          if (!dbExercise) throw new Error("Egzersiz oluşturulamadı");
+
+          const setsPayload = ex.exercise_sets.map((set, setIdx) => ({
+            exercise_id: dbExercise.id,
+            set_number: setIdx + 1,
+            reps: ex.is_duration_based ? null : set.reps ?? null,
+            duration_sec: ex.is_duration_based ? set.duration_sec ?? null : null,
+            notes: set.notes ?? null,
+            ...setToInsertColumns(set),
+          }));
+
+          const { error: setsError } = (await db
+            .from("exercise_sets")
+            .insert(setsPayload)) as { error: { message: string } | null };
+          if (setsError) throw new Error(setsError.message);
         }
       }
 
@@ -243,7 +272,7 @@ export function NewProgramClient({
         ))}
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)}>
+      <form onSubmit={handleSubmit(onSubmit, onInvalid)}>
         {/* ADIM 1: Temel Bilgiler */}
         {step === 0 && (
           <Card>

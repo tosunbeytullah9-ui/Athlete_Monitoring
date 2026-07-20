@@ -316,9 +316,63 @@ export type Database = {
           },
         ]
       }
+      exercise_sets: {
+        Row: {
+          band_resistance: string | null
+          created_at: string | null
+          duration_sec: number | null
+          exercise_id: string
+          id: string
+          is_bodyweight: boolean | null
+          load_kg: number | null
+          notes: string | null
+          percent_1rm: number | null
+          reps: number | null
+          rpe: number | null
+          set_number: number
+        }
+        Insert: {
+          band_resistance?: string | null
+          created_at?: string | null
+          duration_sec?: number | null
+          exercise_id: string
+          id?: string
+          is_bodyweight?: boolean | null
+          load_kg?: number | null
+          notes?: string | null
+          percent_1rm?: number | null
+          reps?: number | null
+          rpe?: number | null
+          set_number: number
+        }
+        Update: {
+          band_resistance?: string | null
+          created_at?: string | null
+          duration_sec?: number | null
+          exercise_id?: string
+          id?: string
+          is_bodyweight?: boolean | null
+          load_kg?: number | null
+          notes?: string | null
+          percent_1rm?: number | null
+          reps?: number | null
+          rpe?: number | null
+          set_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "exercise_sets_exercise_id_fkey"
+            columns: ["exercise_id"]
+            isOneToOne: false
+            referencedRelation: "exercises"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       exercises: {
         Row: {
           category: string | null
+          completed_at: string | null
           duration_sec: number | null
           id: string
           load_kg: number | null
@@ -339,6 +393,7 @@ export type Database = {
         }
         Insert: {
           category?: string | null
+          completed_at?: string | null
           duration_sec?: number | null
           id?: string
           load_kg?: number | null
@@ -359,6 +414,7 @@ export type Database = {
         }
         Update: {
           category?: string | null
+          completed_at?: string | null
           duration_sec?: number | null
           id?: string
           load_kg?: number | null
@@ -722,6 +778,65 @@ export type Database = {
           },
         ]
       }
+      readiness_scores: {
+        Row: {
+          acwr_component: number | null
+          algorithm_version: string
+          athlete_id: string
+          baseline_mean: number | null
+          baseline_n: number | null
+          baseline_sd: number | null
+          computed_at: string | null
+          id: string
+          inputs: Json | null
+          score: number | null
+          score_date: string
+          status: string | null
+          wellness_component: number | null
+          wellness_z: number | null
+        }
+        Insert: {
+          acwr_component?: number | null
+          algorithm_version: string
+          athlete_id: string
+          baseline_mean?: number | null
+          baseline_n?: number | null
+          baseline_sd?: number | null
+          computed_at?: string | null
+          id?: string
+          inputs?: Json | null
+          score?: number | null
+          score_date: string
+          status?: string | null
+          wellness_component?: number | null
+          wellness_z?: number | null
+        }
+        Update: {
+          acwr_component?: number | null
+          algorithm_version?: string
+          athlete_id?: string
+          baseline_mean?: number | null
+          baseline_n?: number | null
+          baseline_sd?: number | null
+          computed_at?: string | null
+          id?: string
+          inputs?: Json | null
+          score?: number | null
+          score_date?: string
+          status?: string | null
+          wellness_component?: number | null
+          wellness_z?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "readiness_scores_athlete_id_fkey"
+            columns: ["athlete_id"]
+            isOneToOne: false
+            referencedRelation: "athletes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       teams: {
         Row: {
           created_at: string | null
@@ -884,32 +999,38 @@ export type Database = {
       }
       training_sessions: {
         Row: {
+          athlete_session_notes: string | null
           day_of_week: number | null
           description: string | null
           duration_min: number | null
           id: string
           order_index: number | null
           program_id: string
+          session_rpe: number | null
           session_type: string | null
           title: string | null
         }
         Insert: {
+          athlete_session_notes?: string | null
           day_of_week?: number | null
           description?: string | null
           duration_min?: number | null
           id?: string
           order_index?: number | null
           program_id: string
+          session_rpe?: number | null
           session_type?: string | null
           title?: string | null
         }
         Update: {
+          athlete_session_notes?: string | null
           day_of_week?: number | null
           description?: string | null
           duration_min?: number | null
           id?: string
           order_index?: number | null
           program_id?: string
+          session_rpe?: number | null
           session_type?: string | null
           title?: string | null
         }
@@ -1037,6 +1158,71 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "wearable_daily_metrics_athlete_id_fkey"
+            columns: ["athlete_id"]
+            isOneToOne: false
+            referencedRelation: "athletes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wellness_checkins: {
+        Row: {
+          athlete_id: string
+          checkin_date: string
+          created_at: string | null
+          entered_by: string | null
+          fatigue: number
+          id: string
+          mood: number
+          notes: string | null
+          sleep_hours: number | null
+          sleep_quality: number
+          soreness: number
+          source: string
+          stress: number
+          submitted_at: string | null
+          updated_at: string | null
+          wellness_total: number | null
+        }
+        Insert: {
+          athlete_id: string
+          checkin_date?: string
+          created_at?: string | null
+          entered_by?: string | null
+          fatigue: number
+          id?: string
+          mood: number
+          notes?: string | null
+          sleep_hours?: number | null
+          sleep_quality: number
+          soreness: number
+          source?: string
+          stress: number
+          submitted_at?: string | null
+          updated_at?: string | null
+          wellness_total?: number | null
+        }
+        Update: {
+          athlete_id?: string
+          checkin_date?: string
+          created_at?: string | null
+          entered_by?: string | null
+          fatigue?: number
+          id?: string
+          mood?: number
+          notes?: string | null
+          sleep_hours?: number | null
+          sleep_quality?: number
+          soreness?: number
+          source?: string
+          stress?: number
+          submitted_at?: string | null
+          updated_at?: string | null
+          wellness_total?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wellness_checkins_athlete_id_fkey"
             columns: ["athlete_id"]
             isOneToOne: false
             referencedRelation: "athletes"

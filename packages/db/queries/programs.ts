@@ -5,7 +5,7 @@ export async function getPrograms(client: DbClient, orgId: string) {
   const { data, error } = await client
     .from("training_programs")
     .select(
-      `*, training_sessions(*, exercises(*))`
+      `*, training_sessions(*, exercises(*, exercise_sets(*)))`
     )
     .eq("org_id", orgId)
     .order("created_at", { ascending: false });
@@ -17,7 +17,7 @@ export async function getPrograms(client: DbClient, orgId: string) {
 export async function getProgramById(client: DbClient, id: string) {
   const { data, error } = await client
     .from("training_programs")
-    .select(`*, training_sessions(*, exercises(*))`)
+    .select(`*, training_sessions(*, exercises(*, exercise_sets(*)))`)
     .eq("id", id)
     .single();
 
