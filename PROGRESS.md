@@ -1,6 +1,7 @@
 # AthleteIQ — Proje Durumu
 
-> Son güncelleme: 2026-07-20 (**Parti 2.2.E — 1RM manuel giriş formu + mevcut query'leri bağlama** — `/tests` sayfasına "1RM Kayıtları" alt-bölümü eklendi (liste + ekleme formu, `create1RMRecord`/`getAthleteMaxes` mevcut haliyle çağrılıyor), program builder'ın ExercisePickerModal'ına `athleteMaxes` prop'u bağlandı ("Son max" rozeti artık görünüyor). Detay: § Parti 2.2.E)
+> Son güncelleme: 2026-07-21 (**Parti 2.2.F — Tonaj özet metriği (Parti 2'nin son adımı)** — program detay sayfası artık her seans ve programın tamamı için toplam tonajı (kg) hesaplayıp gösteriyor; %1RM setleri sporcunun en güncel 1RM kaydından çözülüyor, kayıt yoksa set tonaja dahil edilmeyip ayrı sayılıyor, vücut ağırlığı/bant setleri kg değil tekrar sayısıyla ayrı gösteriliyor. **Parti 2 (2.1 → 2.2.F) bu partiyle tamamen kapandı** — üst-özet için § Parti 2 Kapanış Özeti. Detay: § Parti 2.2.F)
+> Önceki: 2026-07-20 (**Parti 2.2.E — 1RM manuel giriş formu + mevcut query'leri bağlama** — `/tests` sayfasına "1RM Kayıtları" alt-bölümü eklendi (liste + ekleme formu, `create1RMRecord`/`getAthleteMaxes` mevcut haliyle çağrılıyor), program builder'ın ExercisePickerModal'ına `athleteMaxes` prop'u bağlandı ("Son max" rozeti artık görünüyor). Detay: § Parti 2.2.E)
 > Önceki: 2026-07-20 (**Parti 2.2.D — set bazlı UI, uçtan uca kablolama** — program builder artık egzersiz başına tek satırlık grid yerine set listesi kullanıyor (kg/%1RM/vücut ağırlığı/direnç bandı + RPE, set başına), `exercise_sets` tablosuna yazıyor/okuyor. Detay: § Parti 2.2.D)
 > Önceki: 2026-07-20 (**Parti 2.2.C — ExerciseList paylaşılan bileşene taşındı (davranış değişikliği yok)** — new/edit program builder'daki birebir aynı egzersiz listesi alt-bileşeni `apps/web/components/features/program-builder/exercise-list.tsx`'e çıkarıldı. Detay: § Parti 2.2.C)
 > Önceki: 2026-07-18 (**Parti 2.2.B — session_rpe şeması (atıl, Parti 6/7'de bağlanacak)** — `training_sessions.session_rpe` kolonu eklendi, cloud'a push edildi ve doğrulandı. Detay: § Parti 2.2.B)
@@ -24,6 +25,47 @@
 - `supabase/seed.sql` — Başlangıç test verisi
 - `packages/db/types.ts` — Supabase'den üretilmiş TypeScript tipleri
 - `packages/db/queries/` — athletes, programs, acwr, competitions, tests, wearables, teams, memberships, **exercises** sorguları
+
+### Parti 2 Kapanış Özeti — 2.1'den 2.2.F'ye ✅ (2026-07-21)
+
+Parti 2, set bazlı yoğunluk takibini şemadan ekrana kadar uçtan uca kabloladı. Altı alt-parti, kronolojik sırayla:
+
+| Alt-parti | Ne yaptı | Değişen tablo/dosyalar |
+|---|---|---|
+| 2.1 | `exercise_sets` şeması (additive) | `014_exercise_sets.sql`, `015_exercise_sets_fixes.sql` |
+| 2.2.B | `training_sessions.session_rpe` kolonu (atıl, henüz bağlı değil) | `016_session_rpe.sql` |
+| 2.2.C | `ExerciseList` alt-bileşenini `new`/`edit` builder'larından paylaşılan tek dosyaya çıkarma (davranış değişikliği yok) | `components/features/program-builder/exercise-list.tsx` |
+| 2.2.D | Set bazlı UI'ı uçtan uca kablolama — builder artık `exercise_sets`'e yazıyor/okuyor | `exercise-list.tsx`, `new-program-client.tsx`, `edit-program-client.tsx`, `program-detail-client.tsx`, `packages/db/queries/programs.ts`, `packages/db/types.ts` |
+| 2.2.E | 1RM manuel giriş formu + mevcut `getAthleteMaxes`/`create1RMRecord`'u bağlama | `tests/page.tsx` + `tests-client.tsx`, `programs/new/page.tsx`, `programs/[id]/edit/page.tsx` |
+| 2.2.F | Tonaj özet metriği (bu parti) | `apps/web/lib/tonnage.ts` [yeni], `programs/[id]/page.tsx`, `programs/[id]/program-detail-client.tsx` |
+
+**Şema tarafı:** `exercise_sets` (014) tamamen additive geldi; `exercises` tablosundaki eski kolonlar (`sets`, `reps`, `duration_sec`, `load_kg`, `load_percent`, `load_percent_1rm`, `rpe_target`, `load_type`) **silinmedi**, hâlâ DB'de duruyor ve `DEPRECATED` yorumuyla işaretli. 2.2.D'den bu yana **hiçbir web akışı bu kolonlara yazmıyor** (hem `new-program-client.tsx` hem `edit-program-client.tsx` yalnızca `exercise_sets`'e insert ediyor) — yani bu partiden sonra oluşturulan/düzenlenen her programda bu kolonlar `null` kalacak. Kolonlar bilinçli olarak silinmedi (geriye dönük veri kaybı riski + gelecekte gerekirse kolay rollback).
+
+**Mobil hâlâ Parti 7'yi bekliyor:** `apps/mobile/components/ExerciseCard.tsx` hâlâ deprecated `exercises.sets/reps/load_kg/load_percent/unit` kolonlarını okuyor (BUGS.md, Parti 2.2.D'de bulundu, AÇIK). 2.2.D'den sonra web'de oluşturulan hiçbir programda bu kolonlar dolu olmayacağı için, mobil sporcu görünümü bu programlarda egzersiz kartlarını boş/anlamsız gösterecek — `ExerciseCard`'ın `exercise_sets` join'i okuyacak şekilde güncellenmesi Parti 7 kapsamında.
+
+**Parti 2'nin genel sonucu:** Koç artık program builder'da set bazına kadar inen bir yoğunluk modeli (kg/%1RM/vücut ağırlığı/direnç bandı + RPE) kuruyor, sporcunun 1RM geçmişini giriyor/görüyor ve program detay ekranında hem set tablosunu hem hesaplanmış tonaj özetini görüyor — hepsi salt görüntüleme/hesaplama katmanında, hiçbir yeni DB yazma yolu açılmadan (2.2.F). Açık kalan tek uç: mobil tarafı (Parti 7).
+
+### Parti 2.2.F — Tonaj özet metriği ✅ (2026-07-21)
+- **Kapsam:** `apps/web/lib/tonnage.ts` (yeni dosya), `apps/web/app/(dashboard)/programs/[id]/page.tsx`, `apps/web/app/(dashboard)/programs/[id]/program-detail-client.tsx`. `acwr-client.tsx`/`acwr_logs`'a dokunulmadı (talimat gereği, Parti 6 kapsamı). Yeni DB kolonu/tablosu yok — salt hesaplama + render.
+- **Önce-kontrol bulguları:**
+  - `programs/[id]/page.tsx` **`athleteMaxes` fetch ETMİYORDU** — 2.2.E'nin "üç server sayfası" (`tests/page.tsx`, `programs/new/page.tsx`, `programs/[id]/edit/page.tsx`) arasında değildi. Eklendi.
+  - `program-detail-client.tsx`'in `exercises(*, exercise_sets(*))` join'i (2.2.D'de `packages/db/queries/programs.ts`'e eklenmişti) zaten mevcuttu ve set tablosu zaten render ediliyordu — dokunulmadı, doğrudan tonaj hesabı için kullanıldı.
+- **Bireysel vs takım programı ayrımı (2.2.E'deki "Son max" rozeti kararıyla aynı gerekçe):** Program `athlete_id` doluysa (`scope==="athlete"`), o sporcunun `getAthleteMaxes` sonucu `page.tsx`'te çekilip client'a geçiriliyor. Program `team_id` doluysa (`scope==="team"`), tek bir "sahibi" sporcu olmadığından 1RM listesi **boş `[]`** geçiliyor — bu, takım programındaki her `%1RM` setinin otomatik olarak "1RM eksikliği nedeniyle dahil edilmedi" sayılması anlamına gelir (doğru davranış: hangi sporcunun 1RM'i kullanılacağı belirsiz, yanlış bir sayı üretmektense dışlamak tercih edildi).
+  - Not: 2.2.E'nin per-athlete-loop deseni (tüm org sporcularının maxlarını çekip birleştirme) burada **kullanılmadı** — bu sayfa tek bir programa ait, org geneline ihtiyaç yok; `program.athlete_id` biliniyorsa doğrudan `getAthleteMaxes(supabase, program.athlete_id)` tek çağrısı yeterli.
+- **`apps/web/lib/tonnage.ts` (saf fonksiyonlar, DB'ye dokunmuyor):** `buildMaxLookup` (egzersiz adı → en güncel 1RM kg, `Athlete1RMRecord[]`'den `Map` kurar — `getAthleteMaxes`'in kendi dedup'ından SONRA çalıştığı için ek bir "en güncel kazanır" mantığına gerek yok, ama yine de `Map.set` yalnızca ilk görülende yazıldığından çift güvenli), `calculateExerciseTonnage`/`calculateSessionTonnage`/`calculateProgramTonnage`. Set bazlı kural (`calculateSetTonnage`, dosya içi, export edilmiyor):
+  1. `is_bodyweight` veya `band_resistance` doluysa → kg'a hiç girmez, `reps` `bodyweightRepCount`'a eklenir.
+  2. `load_kg` doluysa → `reps × load_kg` → `totalKg`.
+  3. `percent_1rm` doluysa → `maxLookup`'ta egzersiz adı için kayıt varsa `reps × (percent_1rm/100 × 1RM)` → `totalKg`; yoksa `excludedSetCount += 1` (tonaja hiç girmez).
+  4. Hiçbiri doluysa (örn. yalnızca süre bazlı, yük bilgisi hiç girilmemiş) → sessizce atlanır (0 katkı, hiçbir sayaca eklenmez) — spesifikasyonda bu durum için ayrı bir istek yoktu.
+  - Session/program toplamı, egzersiz sonuçlarının basit toplamı (`reduce`).
+- **`program-detail-client.tsx` render:** Başlık kartında program geneli "Toplam Tonaj: X kg" (+ varsa "N set 1RM eksikliği nedeniyle tonaja dahil edilmedi" amber uyarı). Her seans kartının başlığının altında aynı üçlü (seans tonajı + varsa bodyweight/bant tekrar sayısı + varsa dışlanan set sayısı) — `useMemo` ile `maxLookup` bir kez kuruluyor, tonaj hesapları ondan türüyor.
+- **Doğrulama (gerçek Supabase Cloud verisiyle, Playwright bu ortamda mevcut değildi — bkz. not aşağıda):**
+  1. `pnpm --filter web build` → 0 hata (yalnızca önceden var olan uyarılar).
+  2. **Gerçek mevcut veriyle (görevin kendi manuel örneği):** İbrahim'in takımının canlı "Hipertrofi" programı (Back Squat 3×8×80kg + Bench Press 3×8×50kg — bu tam olarak görev talimatındaki örnek) PostgREST üzerinden `getProgramById`'in kullandığı **birebir aynı** join (`training_sessions(*,exercises(*,exercise_sets(*)))`) ile, test kullanıcısının gerçek oturum JWT'siyle (RLS aktif) çekildi; şu anda sevk edilen `apps/web/lib/tonnage.ts` kodu bu veri üzerinde çalıştırıldı (Node 24 `--experimental-strip-types`, gerçek dosya — el ile taklit edilmiş bir kopya değil). Sonuç: `totalKg=3120` — talimattaki manuel hesapla (`8×80×3 + 8×50×3 = 1920+1200=3120`) birebir eşleşti, `excludedSetCount=0`, `bodyweightRepCount=0`.
+  3. **%1RM eksik senaryosu (geçici test verisi, Supabase'e gerçek insert ile):** İbrahim için bireysel (athlete-scoped) bir test programı oluşturuldu — Back Squat (3×8×80kg), Bench Press (3×8×%70, önceden eklenen geçici bir 1RM kaydı: 100kg → beklenen 3×8×70=1680kg), Deadlift (2×5×%80, **kasıtlı olarak 1RM kaydı YOK**), Band Pull Apart (2 set, 15+12 tekrar, direnç bandı). Aynı gerçek-JWT + gerçek-kod yöntemiyle çalıştırıldı: `totalKg=3600` (1920+1680, elle hesapla birebir), `excludedSetCount=2` (Deadlift'in 2 seti — doğru), `bodyweightRepCount=27` (15+12 — doğru). Test programı ve geçici 1RM kaydı doğrulama sonrası SQL ile silindi (cascade ile session/exercise/exercise_sets dahil), DB temizliği SQL ile teyit edildi (`leftover_program=0, leftover_1rm=0, leftover_exercises=0`).
+  4. **Regresyon:** "aaaaaaaaaaa" (Bisiklet, 1×1×1kg) ve "asdasdasd" (Arnold Press/Ayı Yürüyüşü/Cable Row kg + Single-Leg Hip Thrust bodyweight/bant karışık) programlarının gerçek verisi de aynı yöntemle çekilip hesaplandı — hiçbiri `percent_1rm` kullanmadığından `excludedSetCount=0` her ikisinde de, hesaplama hatasız çalıştı (crash/NaN yok).
+  - **Araç notu:** Bu oturumda bir Playwright/tarayıcı MCP aracı mevcut değildi (önceki partilerin "canlı Playwright doğrulaması" yaptığı ortamdan farklı) — bu yüzden gerçek DOM render'ı görsel olarak doğrulanamadı. Bunun yerine daha güçlü bir yöntem kullanıldı: sevk edilen gerçek `tonnage.ts` kodu, uygulamanın gerçek sorgusuyla (aynı PostgREST join, RLS altında gerçek kullanıcı JWT'si) çekilen gerçek veriye karşı doğrudan çalıştırıldı — hesaplama mantığı için DOM'u görmekten daha kesin bir kanıt, ama JSX/CSS render'ının gözle görülür doğruluğu (örn. amber uyarı rengi, layout) doğrulanamadı. Sonraki bir oturumda Playwright mevcutsa görsel bir geçiş önerilir.
+  5. Mevcut hiçbir şey bozulmadı: `program-detail-client.tsx`'in diğer render yolları (yayınla butonu, edit linki, boş-seans durumu) değişmedi; yalnızca ek satırlar eklendi.
 
 ### Parti 2.2.E — 1RM manuel giriş formu + mevcut query'leri bağlama ✅ (2026-07-20)
 - **Kapsam:** `apps/web/app/(dashboard)/tests/page.tsx`, `tests-client.tsx`, `apps/web/components/features/program-builder/exercise-list.tsx`, `apps/web/app/(dashboard)/programs/new/page.tsx` + `new-program-client.tsx`, `apps/web/app/(dashboard)/programs/[id]/edit/page.tsx` + `edit-program-client.tsx`. `packages/db/queries/exercises.ts`'teki `getAthleteMaxes`/`create1RMRecord` **değiştirilmedi**, sadece çağrıldı (talimat gereği). `test_results` tablosuna/"Maksimal Kuvvet" kategorisine dokunulmadı.
@@ -317,6 +359,7 @@ pnpm --filter="@athleteiq/web" exec eslint .   # yalnızca web (0 error, 21 warn
 - [x] Egzersiz kütüphanesi web UI — platform + org katmanı, tam CRUD ✅ (2026-06-26)
 - [x] Exercise picker modal — program builder'da kütüphaneden egzersiz seçme ✅ (2026-06-26)
 - [x] 1RM takibi — `/tests` sayfasında "1RM Kayıtları" bölümü + program builder "Son max" rozeti ✅ (2026-07-20, Parti 2.2.E)
+- [x] Tonaj özet metriği — program detay sayfasında seans/program bazlı toplam tonaj + 1RM eksikliği uyarısı ✅ (2026-07-21, Parti 2.2.F — **Parti 2 tamamen kapandı**)
 - [ ] ACWR grafiği — Recharts ile görsel trend (şu an tablo mu grafik mi kontrol et)
 
 ### Öncelik 3 — Gelecek Sprint

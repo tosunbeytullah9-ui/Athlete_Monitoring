@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, CheckCircle2, Clock, Users, User, Send, Pencil } from "lucide-react";
@@ -11,6 +11,12 @@ import { createClient } from "@/lib/supabase/client";
 import { useUserContext } from "@/lib/hooks/useUserContext";
 import { publishProgram } from "@athleteiq/db/queries/programs";
 import type { Tables } from "@athleteiq/db/types";
+import type { Athlete1RMRecord } from "@athleteiq/db/queries/exercises";
+import {
+  buildMaxLookup,
+  calculateProgramTonnage,
+  calculateSessionTonnage,
+} from "@/lib/tonnage";
 
 type Program = Tables<"training_programs"> & {
   training_sessions: (Tables<"training_sessions"> & {
@@ -38,10 +44,15 @@ function formatSetLoad(set: Tables<"exercise_sets">): string {
   return "—";
 }
 
+function formatTonnage(kg: number): string {
+  return `${kg.toLocaleString("tr-TR", { maximumFractionDigits: 1 })} kg`;
+}
+
 interface Props {
   program: Program;
   athlete: { id: string; full_name: string } | null;
   team: { id: string; name: string } | null;
+  athleteMaxes: Athlete1RMRecord[];
 }
 
 const DAY_LABELS = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"];
@@ -61,12 +72,18 @@ const PHASE_LABELS: Record<string, string> = {
   peak: "Zirve",
 };
 
-export function ProgramDetailClient({ program, athlete, team }: Props) {
+export function ProgramDetailClient({ program, athlete, team, athleteMaxes }: Props) {
   const router = useRouter();
   const { role } = useUserContext();
   const isAthlete = role === "athlete";
   const [isPublishing, setIsPublishing] = useState(false);
   const [isPublished, setIsPublished] = useState(program.is_published ?? false);
+
+  const maxLookup = useMemo(() => buildMaxLookup(athleteMaxes), [athleteMaxes]);
+  const programTonnage = useMemo(
+    () => calculateProgramTonnage(program.training_sessions, maxLookup),
+    [program.training_sessions, maxLookup]
+  );
 
   async function handlePublish() {
     setIsPublishing(true);
@@ -147,7 +164,16 @@ export function ProgramDetailClient({ program, athlete, team }: Props) {
                   </span>
                 )}
                 <span>{program.training_sessions.length} seans</span>
+                <span className="font-medium text-foreground">
+                  Toplam Tonaj: {formatTonnage(programTonnage.totalKg)}
+                </span>
               </div>
+
+              {programTonnage.excludedSetCount > 0 && (
+                <p className="mt-1 text-xs text-amber-600">
+                  {programTonnage.excludedSetCount} set 1RM eksikliği nedeniyle tonaja dahil edilmedi.
+                </p>
+              )}
 
               {program.notes && (
                 <p className="mt-3 text-sm text-muted-foreground">{program.notes}</p>
@@ -191,7 +217,9 @@ export function ProgramDetailClient({ program, athlete, team }: Props) {
                 {label}
               </h2>
               <div className="space-y-3">
-                {sessions.map((session) => (
+                {sessions.map((session) => {
+                  const sessionTonnage = calculateSessionTonnage(session, maxLookup);
+                  return (
                   <Card key={session.id}>
                     <CardHeader className="pb-3">
                       <div className="flex items-center gap-3">
@@ -212,6 +240,21 @@ export function ProgramDetailClient({ program, athlete, team }: Props) {
                       {session.description && (
                         <p className="text-sm text-muted-foreground mt-1">{session.description}</p>
                       )}
+                      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                        <span className="font-medium text-foreground">
+                          Tonaj: {formatTonnage(sessionTonnage.totalKg)}
+                        </span>
+                        {sessionTonnage.bodyweightRepCount > 0 && (
+                          <span>
+                            {sessionTonnage.bodyweightRepCount} tekrar (vücut ağırlığı/bant, tonaja dahil değil)
+                          </span>
+                        )}
+                        {sessionTonnage.excludedSetCount > 0 && (
+                          <span className="text-amber-600">
+                            {sessionTonnage.excludedSetCount} set 1RM eksikliği nedeniyle dahil edilmedi
+                          </span>
+                        )}
+                      </div>
                     </CardHeader>
 
                     {session.exercises.length > 0 && (
@@ -280,7 +323,8 @@ export function ProgramDetailClient({ program, athlete, team }: Props) {
                       </CardContent>
                     )}
                   </Card>
-                ))}
+                  );
+                })}
               </div>
             </div>
           ))}
