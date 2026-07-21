@@ -12,7 +12,6 @@ import { Input } from "@athleteiq/ui/components/input";
 import { Label } from "@athleteiq/ui/components/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@athleteiq/ui/components/card";
 import { createClient } from "@/lib/supabase/client";
-import type { Database } from "@athleteiq/db/types";
 import type {
   PlatformExercise,
   OrgExercise,
@@ -21,10 +20,6 @@ import type {
 } from "@athleteiq/db/queries/exercises";
 import { ExerciseList, exerciseSchema } from "@/components/features/program-builder/exercise-list";
 import type { ExerciseSetFormValues } from "@/components/features/program-builder/exercise-list";
-
-type ProgramRow = Database["public"]["Tables"]["training_programs"]["Row"];
-type SessionRow = Database["public"]["Tables"]["training_sessions"]["Row"];
-type ExerciseRow = Database["public"]["Tables"]["exercises"]["Row"];
 
 // Set bazlı yük tipini exercise_sets kolonlarına çevirir — yalnızca seçili
 // tipin kolonu dolar, diğerleri null (temiz veri, çakışma riski yok).
@@ -68,15 +63,66 @@ const programSchema = z.object({
   scope: z.enum(["team", "athlete"]),
   team_id: z.string().optional(),
   athlete_id: z.string().optional(),
-  week_number: z.number().int().min(1).max(52).optional().or(z.literal(undefined)),
-  start_date: z.string().optional(),
-  end_date: z.string().optional(),
+  // weeks_count → create_program_with_weeks RPC'nin p_weeks_count'u. Üst sınır
+  // (12) yalnızca UI seviyesinde — RPC'nin kendisi p_weeks_count >= 1 dışında
+  // bir üst sınır kontrolü yapmıyor (018_create_program_with_weeks.sql).
+  weeks_count: z.number().int().min(1).max(12).default(1),
+  // RPC'nin p_block_start_date'i için zorunlu — boş string artık zod
+  // seviyesinde reddediliyor (BUGS.md'deki start_date/end_date Postgres insert
+  // reddi bug'ının start_date kısmı bu partiyle kapandı, bkz. PROGRESS.md).
+  start_date: z.string().min(1, "Başlangıç tarihi gerekli"),
   phase: z.enum(["preparation", "competition", "transition", "peak"]).optional(),
   notes: z.string().optional(),
   sessions: z.array(sessionSchema).default([]),
 });
 
 type ProgramForm = z.infer<typeof programSchema>;
+
+// ProgramForm.sessions'ı RPC'nin p_sessions jsonb'sine çevirir. Anahtar isimleri
+// RPC'nin ->>'...' okumalarıyla (018_create_program_with_weeks.sql) birebir
+// eşleşmeli — özellikle egzersizin set listesi RPC'de "sets" anahtarı altında
+// okunuyor, form state'indeki "exercise_sets" değil.
+function buildSessionsPayload(sessions: ProgramForm["sessions"]) {
+  return sessions.map((session, sessionIdx) => ({
+    day_of_week: session.day_of_week,
+    session_type: session.session_type ?? null,
+    title: session.title ?? null,
+    duration_min: session.duration_min ?? null,
+    order_index: sessionIdx,
+    exercises: session.exercises.map((ex, exIdx) => ({
+      name: ex.name,
+      category: ex.category ?? null,
+      rest_sec: ex.rest_sec ?? null,
+      notes: ex.notes ?? null,
+      order_index: exIdx,
+      superset_group: ex.superset_group ?? null,
+      superset_order: ex.superset_order ?? 0,
+      sets: ex.exercise_sets.map((set, setIdx) => ({
+        set_number: setIdx + 1,
+        reps: ex.is_duration_based ? null : set.reps ?? null,
+        duration_sec: ex.is_duration_based ? set.duration_sec ?? null : null,
+        notes: set.notes ?? null,
+        ...setToInsertColumns(set),
+      })),
+    })),
+  }));
+}
+
+// RPC'nin RAISE EXCEPTION mesajlarını (018_create_program_with_weeks.sql) kısa,
+// okunaklı bir kullanıcı mesajına çevirir — ham Postgres/plpgsql hatası forma
+// direkt yansımasın (BUGS.md'deki "ham hata mesajı" şikayetinin genellenmiş hali).
+function mapRpcError(rawMessage: string): string {
+  if (rawMessage.includes("yetkisiz")) {
+    return "Bu işlemi yapmaya yetkiniz yok.";
+  }
+  if (rawMessage.includes("p_team_id ve p_athlete_id")) {
+    return "Program kapsamı (takım veya sporcu) hatalı seçilmiş.";
+  }
+  if (rawMessage.includes("week_number") || rawMessage.toLowerCase().includes("between 1 and 52")) {
+    return "Seçilen başlangıç tarihi ve hafta sayısı geçerli bir takvim yılına sığmıyor. Farklı bir başlangıç tarihi deneyin.";
+  }
+  return "Program kaydedilirken bir hata oluştu. Lütfen tekrar deneyin.";
+}
 
 interface Props {
   orgId: string;
@@ -102,6 +148,7 @@ export function NewProgramClient({
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [activeSession, setActiveSession] = useState<number | null>(null);
 
   const {
@@ -115,6 +162,7 @@ export function NewProgramClient({
     resolver: zodResolver(programSchema),
     defaultValues: {
       scope: "team",
+      weeks_count: 1,
       sessions: [],
     },
   });
@@ -128,6 +176,7 @@ export function NewProgramClient({
   const selectedTeamId = watch("team_id");
   const selectedAthleteId = watch("athlete_id");
   const watchedSessions = watch("sessions");
+  const weeksCount = watch("weeks_count");
 
   // "Son max" rozeti yalnızca bireysel (athlete) programlarda anlamlı —
   // takım programının tek bir sporcusu yok, bu yüzden team scope'ta boş kalır.
@@ -161,91 +210,43 @@ export function NewProgramClient({
 
   async function onSubmit(data: ProgramForm) {
     setIsSubmitting(true);
+    setSubmitError(null);
     try {
       const supabase = createClient();
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const db = supabase as any;
 
-      const { data: program, error: programError } = (await db
-        .from("training_programs")
-        .insert({
-          org_id: orgId,
-          title: data.title,
-          team_id: data.scope === "team" ? (data.team_id ?? null) : null,
-          athlete_id: data.scope === "athlete" ? (data.athlete_id ?? null) : null,
-          week_number: data.week_number ?? null,
-          start_date: data.start_date ?? null,
-          end_date: data.end_date ?? null,
-          phase: data.phase ?? null,
-          notes: data.notes ?? null,
-          is_published: false,
-        })
-        .select()
-        .single()) as { data: ProgramRow | null; error: { message: string } | null };
+      const { data: result, error } = (await db.rpc("create_program_with_weeks", {
+        p_org_id: orgId,
+        p_team_id: data.scope === "team" ? (data.team_id ?? null) : null,
+        p_athlete_id: data.scope === "athlete" ? (data.athlete_id ?? null) : null,
+        p_title: data.title,
+        p_phase: data.phase ?? null,
+        p_notes: data.notes ?? null,
+        p_weeks_count: data.weeks_count,
+        p_block_start_date: data.start_date,
+        p_sessions: buildSessionsPayload(data.sessions),
+      })) as {
+        data: { block_id: string | null; program_ids: string[] } | null;
+        error: { message: string } | null;
+      };
 
-      if (programError) throw new Error(programError.message);
-      if (!program) throw new Error("Program oluşturulamadı");
-
-      for (let i = 0; i < data.sessions.length; i++) {
-        const session = data.sessions[i]!;
-
-        const { data: dbSession, error: sessionError } = (await db
-          .from("training_sessions")
-          .insert({
-            program_id: program.id,
-            day_of_week: session.day_of_week,
-            session_type: session.session_type ?? null,
-            title: session.title ?? null,
-            duration_min: session.duration_min ?? null,
-            order_index: i,
-          })
-          .select()
-          .single()) as { data: SessionRow | null; error: { message: string } | null };
-
-        if (sessionError) throw new Error(sessionError.message);
-        if (!dbSession) throw new Error("Seans oluşturulamadı");
-
-        for (let exIdx = 0; exIdx < session.exercises.length; exIdx++) {
-          const ex = session.exercises[exIdx]!;
-
-          const { data: dbExercise, error: exError } = (await db
-            .from("exercises")
-            .insert({
-              session_id: dbSession.id,
-              name: ex.name,
-              category: ex.category ?? null,
-              rest_sec: ex.rest_sec ?? null,
-              notes: ex.notes ?? null,
-              order_index: exIdx,
-              superset_group: ex.superset_group ?? null,
-              superset_order: ex.superset_order ?? 0,
-            })
-            .select()
-            .single()) as { data: ExerciseRow | null; error: { message: string } | null };
-          if (exError) throw new Error(exError.message);
-          if (!dbExercise) throw new Error("Egzersiz oluşturulamadı");
-
-          const setsPayload = ex.exercise_sets.map((set, setIdx) => ({
-            exercise_id: dbExercise.id,
-            set_number: setIdx + 1,
-            reps: ex.is_duration_based ? null : set.reps ?? null,
-            duration_sec: ex.is_duration_based ? set.duration_sec ?? null : null,
-            notes: set.notes ?? null,
-            ...setToInsertColumns(set),
-          }));
-
-          const { error: setsError } = (await db
-            .from("exercise_sets")
-            .insert(setsPayload)) as { error: { message: string } | null };
-          if (setsError) throw new Error(setsError.message);
-        }
+      if (error) throw new Error(mapRpcError(error.message));
+      if (!result || result.program_ids.length === 0) {
+        throw new Error("Program oluşturulamadı.");
       }
 
-      router.push(`/programs/${program.id}`);
+      if (result.block_id) {
+        alert(`${data.weeks_count} hafta oluşturuldu.`);
+      }
+
+      router.push(`/programs/${result.program_ids[0]}`);
     } catch (error) {
       console.error("Program kayıt hatası:", error);
-      alert(`Hata: ${error instanceof Error ? error.message : String(error)}`);
+      setSubmitError(
+        error instanceof Error ? error.message : "Program kaydedilirken bir hata oluştu."
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -383,27 +384,29 @@ export function NewProgramClient({
                   </select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="week_number">Hafta No</Label>
+                  <Label htmlFor="weeks_count">Kaç hafta sürecek? *</Label>
                   <Input
-                    id="week_number"
+                    id="weeks_count"
                     type="number"
                     min={1}
-                    max={52}
-                    {...register("week_number", { valueAsNumber: true })}
-                    placeholder="1–52"
+                    max={12}
+                    {...register("weeks_count", {
+                      setValueAs: (v) => (v === "" ? undefined : Number(v)),
+                    })}
+                    placeholder="1"
                   />
+                  {errors.weeks_count && (
+                    <p className="text-xs text-destructive">{errors.weeks_count.message}</p>
+                  )}
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="start_date">Başlangıç Tarihi</Label>
-                  <Input id="start_date" type="date" {...register("start_date")} />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="end_date">Bitiş Tarihi</Label>
-                  <Input id="end_date" type="date" {...register("end_date")} />
-                </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="start_date">Başlangıç Tarihi *</Label>
+                <Input id="start_date" type="date" {...register("start_date")} />
+                {errors.start_date && (
+                  <p className="text-xs text-destructive">{errors.start_date.message}</p>
+                )}
               </div>
 
               <div className="space-y-1.5">
@@ -465,6 +468,11 @@ export function NewProgramClient({
                 <p className="text-xs text-muted-foreground text-center">
                   Seans eklemek için güne tıklayın
                 </p>
+                {weeksCount > 1 && (
+                  <p className="text-xs text-muted-foreground text-center mt-1">
+                    Bu seans planı, oluşturulacak {weeksCount} haftanın hepsinde aynen tekrarlanacak.
+                  </p>
+                )}
               </CardContent>
             </Card>
 
@@ -596,8 +604,8 @@ export function NewProgramClient({
                         </p>
                       </div>
                       <div>
-                        <p className="text-xs text-muted-foreground">Hafta</p>
-                        <p className="font-medium">{data.week_number ?? "—"}</p>
+                        <p className="text-xs text-muted-foreground">Hafta Sayısı</p>
+                        <p className="font-medium">{data.weeks_count ?? 1}</p>
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground">Seans Sayısı</p>
@@ -634,6 +642,12 @@ export function NewProgramClient({
                   </div>
                 );
               })()}
+
+              {submitError && (
+                <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
+                  {submitError}
+                </div>
+              )}
 
               <div className="flex justify-between pt-2">
                 <Button type="button" variant="outline" onClick={() => setStep(1)}>
