@@ -570,6 +570,10 @@ create policy "exercises_select" on exercises for select using (
 );
 ```
 
+### 4.1 Güvenlik Konvansiyonları
+
+Herhangi bir plpgsql fonksiyonunda manuel yetkilendirme kontrolü yazılırken (`IF NOT (...) THEN RAISE EXCEPTION` deseni), koşul ifadesi MUTLAKA `coalesce(..., false)` ile sarılmalı. Ham `is_super_admin() OR my_role(org)=X OR ...` zinciri, org üyeliği olmayan kullanıcılar için `my_role()` NULL döndüğünde üç değerli mantık yüzünden sessizce bypass edilir (NOT NULL = NULL, hiçbir zaman true olmaz). Bu, Parti 3.C'de gerçek bir yetkisiz-erişim açığı olarak bulundu ve düzeltildi (bkz. PROGRESS.md § Parti 3.C).
+
 ---
 
 ## 5. WEARABLE ENTEGRASYONLARİ — TEKNİK DETAY
