@@ -7,10 +7,30 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "14.5"
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
   }
   public: {
     Tables: {
@@ -778,6 +798,77 @@ export type Database = {
           },
         ]
       }
+      program_blocks: {
+        Row: {
+          athlete_id: string | null
+          created_at: string | null
+          created_by: string | null
+          id: string
+          notes: string | null
+          org_id: string
+          phase: string | null
+          team_id: string | null
+          title: string
+          total_weeks: number
+          updated_at: string | null
+        }
+        Insert: {
+          athlete_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          org_id: string
+          phase?: string | null
+          team_id?: string | null
+          title: string
+          total_weeks: number
+          updated_at?: string | null
+        }
+        Update: {
+          athlete_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          org_id?: string
+          phase?: string | null
+          team_id?: string | null
+          title?: string
+          total_weeks?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "program_blocks_athlete_id_fkey"
+            columns: ["athlete_id"]
+            isOneToOne: false
+            referencedRelation: "athletes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "program_blocks_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "org_trial_status"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "program_blocks_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "program_blocks_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       readiness_scores: {
         Row: {
           acwr_component: number | null
@@ -920,6 +1011,7 @@ export type Database = {
       training_programs: {
         Row: {
           athlete_id: string | null
+          block_id: string | null
           created_at: string | null
           created_by: string | null
           end_date: string | null
@@ -932,10 +1024,12 @@ export type Database = {
           team_id: string | null
           title: string
           updated_at: string | null
+          week_index_in_block: number | null
           week_number: number | null
         }
         Insert: {
           athlete_id?: string | null
+          block_id?: string | null
           created_at?: string | null
           created_by?: string | null
           end_date?: string | null
@@ -948,10 +1042,12 @@ export type Database = {
           team_id?: string | null
           title: string
           updated_at?: string | null
+          week_index_in_block?: number | null
           week_number?: number | null
         }
         Update: {
           athlete_id?: string | null
+          block_id?: string | null
           created_at?: string | null
           created_by?: string | null
           end_date?: string | null
@@ -964,6 +1060,7 @@ export type Database = {
           team_id?: string | null
           title?: string
           updated_at?: string | null
+          week_index_in_block?: number | null
           week_number?: number | null
         }
         Relationships: [
@@ -972,6 +1069,13 @@ export type Database = {
             columns: ["athlete_id"]
             isOneToOne: false
             referencedRelation: "athletes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_programs_block_id_fkey"
+            columns: ["block_id"]
+            isOneToOne: false
+            referencedRelation: "program_blocks"
             referencedColumns: ["id"]
           },
           {
@@ -1328,10 +1432,29 @@ export type Database = {
           chronic_load: number
         }[]
       }
+      copy_program_tree: {
+        Args: { p_source_program_id: string; p_target_program_id: string }
+        Returns: undefined
+      }
+      create_program_with_weeks: {
+        Args: {
+          p_athlete_id: string
+          p_block_start_date: string
+          p_notes: string
+          p_org_id: string
+          p_phase: string
+          p_sessions: Json
+          p_team_id: string
+          p_title: string
+          p_weeks_count: number
+        }
+        Returns: Json
+      }
       get_athlete_programs: {
         Args: { p_athlete_id: string }
         Returns: {
           athlete_id: string | null
+          block_id: string | null
           created_at: string | null
           created_by: string | null
           end_date: string | null
@@ -1344,6 +1467,7 @@ export type Database = {
           team_id: string | null
           title: string
           updated_at: string | null
+          week_index_in_block: number | null
           week_number: number | null
         }[]
         SetofOptions: {
@@ -1353,9 +1477,29 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      insert_sessions_tree: {
+        Args: { p_program_id: string; p_sessions: Json }
+        Returns: undefined
+      }
       is_super_admin: { Args: never; Returns: boolean }
       my_role: { Args: { org: string }; Returns: string }
       my_team_id: { Args: { org: string }; Returns: string }
+      propagate_week_to_future: {
+        Args: { p_source_program_id: string }
+        Returns: Json
+      }
+      update_program_week: {
+        Args: {
+          p_end_date: string
+          p_notes: string
+          p_phase: string
+          p_program_id: string
+          p_sessions: Json
+          p_start_date: string
+          p_title: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
@@ -1484,7 +1628,11 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {},
   },
 } as const
+

@@ -63,9 +63,9 @@ export function buildSessionsPayload(sessions: SessionFormValues[]) {
 }
 
 // RPC'lerin RAISE EXCEPTION mesajlarını (018_create_program_with_weeks.sql,
-// 020_update_program_week.sql) kısa, okunaklı bir kullanıcı mesajına
-// çevirir — ham Postgres/plpgsql hatası forma direkt yansımasın
-// (BUGS.md'deki "ham hata mesajı" şikayetinin genellenmiş hali).
+// 020_update_program_week.sql, 021_propagate_week.sql) kısa, okunaklı bir
+// kullanıcı mesajına çevirir — ham Postgres/plpgsql hatası forma direkt
+// yansımasın (BUGS.md'deki "ham hata mesajı" şikayetinin genellenmiş hali).
 export function mapRpcError(rawMessage: string): string {
   if (rawMessage.includes("yetkisiz")) {
     return "Bu işlemi yapmaya yetkiniz yok.";
@@ -78,6 +78,15 @@ export function mapRpcError(rawMessage: string): string {
   }
   if (rawMessage.includes("week_number") || rawMessage.toLowerCase().includes("between 1 and 52")) {
     return "Seçilen başlangıç tarihi ve hafta sayısı geçerli bir takvim yılına sığmıyor. Farklı bir başlangıç tarihi deneyin.";
+  }
+  // propagate_week_to_future (021_propagate_week.sql) — normalde UI bu iki
+  // durumda butonu hiç göstermiyor, ama bir yarış durumunda (başka bir
+  // sekmede blok/haftalar değiştiyse) RPC'nin kendisi yine de reddedebilir.
+  if (rawMessage.includes("bu program bir bloğun parçası değil")) {
+    return "Bu program bir hafta bloğunun parçası değil, yayılamaz.";
+  }
+  if (rawMessage.includes("sonraki hafta yok")) {
+    return "Bu zaten bloktaki son hafta, uygulanacak sonraki hafta yok.";
   }
   return "Program kaydedilirken bir hata oluştu. Lütfen tekrar deneyin.";
 }

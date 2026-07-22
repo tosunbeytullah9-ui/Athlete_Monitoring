@@ -1,12 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm, useFieldArray } from "react-hook-form";
 import type { FieldErrors } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Trash2, ArrowLeft, ArrowRight, Check, AlertTriangle } from "lucide-react";
+import { Plus, Trash2, ArrowLeft, ArrowRight, Check, AlertTriangle, Copy } from "lucide-react";
 import { Button } from "@athleteiq/ui/components/button";
 import { Input } from "@athleteiq/ui/components/input";
 import { Label } from "@athleteiq/ui/components/label";
@@ -123,6 +123,45 @@ export function EditProgramClient({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [activeSession, setActiveSession] = useState<number | null>(null);
+
+  // "Sonraki Haftalara Uygula" — yalnızca program bir bloğun parçasıysa VE
+  // aynı blokta kendisinden sonraki en az bir hafta varsa anlamlı. futureWeeks
+  // null iken sorgu henüz sonuçlanmadı (buton gizli kalır, yanlışlıkla erken
+  // tıklamayı önler); [] iken sorgu bitti ama sonraki hafta yok/blok yok.
+  const [futureWeeks, setFutureWeeks] = useState<
+    { id: string; week_index_in_block: number | null }[] | null
+  >(null);
+  const [showPropagateConfirm, setShowPropagateConfirm] = useState(false);
+  const [isPropagating, setIsPropagating] = useState(false);
+  const [propagateError, setPropagateError] = useState<string | null>(null);
+  const [propagateSuccess, setPropagateSuccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!program.block_id) {
+      setFutureWeeks([]);
+      return;
+    }
+    let cancelled = false;
+    const supabase = createClient();
+    supabase
+      .from("training_programs")
+      .select("id, week_index_in_block")
+      .eq("block_id", program.block_id)
+      .gt("week_index_in_block", program.week_index_in_block ?? 0)
+      .order("week_index_in_block", { ascending: true })
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) {
+          console.error("Sonraki hafta sorgusu hatası:", error);
+          setFutureWeeks([]);
+          return;
+        }
+        setFutureWeeks(data ?? []);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [program.block_id, program.week_index_in_block]);
 
   // Program kapsamı sabit — yalnızca gösterim için (bkz. programSchema
   // üzerindeki yorum). scope/team/athlete adı program.team_id/athlete_id'den
@@ -256,6 +295,38 @@ export function EditProgramClient({
       );
     } finally {
       setIsSubmitting(false);
+    }
+  }
+
+  // "Kaydet"ten AYRI bir aksiyon — bilerek birleştirilmedi. propagate_week_to_future
+  // RPC'si kaynağın DB'deki (en son kaydedilmiş) haline göre kopyalar, formun
+  // o anki (henüz kaydedilmemiş) state'ine göre değil — bu yüzden onay
+  // penceresinde kullanıcıya bunu hatırlatan bir not var (aşağıda).
+  async function handlePropagateConfirm() {
+    setIsPropagating(true);
+    setPropagateError(null);
+    try {
+      const supabase = createClient();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const db = supabase as any;
+
+      const { error } = (await db.rpc("propagate_week_to_future", {
+        p_source_program_id: program.id,
+      })) as { error: { message: string } | null };
+
+      if (error) throw new Error(mapRpcError(error.message));
+
+      setShowPropagateConfirm(false);
+      setPropagateSuccess(
+        `Değişiklikler ${futureWeeks?.length ?? 0} sonraki haftaya uygulandı.`
+      );
+    } catch (error) {
+      console.error("Hafta yayma hatası:", error);
+      setPropagateError(
+        error instanceof Error ? error.message : "Yayma işlemi sırasında bir hata oluştu."
+      );
+    } finally {
+      setIsPropagating(false);
     }
   }
 
@@ -604,10 +675,81 @@ export function EditProgramClient({
                   {isSubmitting ? "Kaydediliyor..." : "Değişiklikleri Kaydet"}
                 </Button>
               </div>
+
+              {/* "Sonraki Haftalara Uygula" — Kaydet'ten AYRI bir aksiyon, bilerek
+                  birleştirilmedi (aynı anda ikisini yapmak kafa karıştırır). Yalnızca
+                  program bir bloğun parçasıysa VE son hafta değilse görünür. */}
+              {program.block_id && futureWeeks && futureWeeks.length > 0 && (
+                <div className="flex flex-col items-end gap-2 border-t pt-4 mt-2">
+                  {propagateSuccess && (
+                    <p className="text-xs text-emerald-700 dark:text-emerald-400">
+                      {propagateSuccess}
+                    </p>
+                  )}
+                  {propagateError && (
+                    <p className="text-xs text-destructive">{propagateError}</p>
+                  )}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setPropagateError(null);
+                      setPropagateSuccess(null);
+                      setShowPropagateConfirm(true);
+                    }}
+                  >
+                    <Copy className="h-4 w-4" />
+                    Sonraki Haftalara Uygula
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
       </form>
+
+      {showPropagateConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={() => !isPropagating && setShowPropagateConfirm(false)}
+          />
+          <div className="relative z-10 w-full max-w-md rounded-xl border bg-card p-6 shadow-lg mx-4">
+            <h2 className="text-lg font-semibold mb-2">Sonraki Haftalara Uygula</h2>
+            <p className="text-sm text-muted-foreground mb-3">
+              Bu değişiklik şu haftalara uygulanacak:{" "}
+              <span className="font-medium text-foreground">
+                {futureWeeks?.map((w) => `Hafta ${w.week_index_in_block}`).join(", ")}
+              </span>
+              {" — "}devam edilsin mi?
+            </p>
+            <p className="text-xs text-muted-foreground mb-6">
+              Yalnızca bu programın en son <strong>kaydedilmiş</strong> hali kopyalanır —
+              henüz kaydetmediğiniz değişiklikleriniz varsa önce &quot;Değişiklikleri
+              Kaydet&quot;i kullanın.
+            </p>
+            {propagateError && (
+              <div className="mb-4 rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
+                {propagateError}
+              </div>
+            )}
+            <div className="flex justify-end gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowPropagateConfirm(false)}
+                disabled={isPropagating}
+              >
+                İptal
+              </Button>
+              <Button type="button" onClick={handlePropagateConfirm} disabled={isPropagating}>
+                {isPropagating ? "Uygulanıyor..." : "Devam Et"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
