@@ -12,8 +12,7 @@ import { Input } from "@athleteiq/ui/components/input";
 import { Label } from "@athleteiq/ui/components/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@athleteiq/ui/components/card";
 import { createClient } from "@/lib/supabase/client";
-import { updateProgram } from "@athleteiq/db/queries/programs";
-import type { Database, Tables } from "@athleteiq/db/types";
+import type { Tables } from "@athleteiq/db/types";
 import type {
   PlatformExercise,
   OrgExercise,
@@ -22,17 +21,13 @@ import type {
 } from "@athleteiq/db/queries/exercises";
 import { ExerciseList, exerciseSchema } from "@/components/features/program-builder/exercise-list";
 import type { ExerciseSetFormValues } from "@/components/features/program-builder/exercise-list";
+import { buildSessionsPayload, mapRpcError } from "@/lib/program-rpc";
 
 type ProgramRow = Tables<"training_programs"> & {
   training_sessions: (Tables<"training_sessions"> & {
     exercises: (Tables<"exercises"> & { exercise_sets?: Tables<"exercise_sets">[] })[];
   })[];
 };
-type SessionInsert = Database["public"]["Tables"]["training_sessions"]["Insert"];
-type SessionRow = Database["public"]["Tables"]["training_sessions"]["Row"];
-type ExerciseInsert = Database["public"]["Tables"]["exercises"]["Insert"];
-type ExerciseRow = Database["public"]["Tables"]["exercises"]["Row"];
-type ExerciseSetInsert = Database["public"]["Tables"]["exercise_sets"]["Insert"];
 
 // exercise_sets tablosunda ayrı bir load_type kolonu yok — hangi kolonun dolu
 // olduğundan türetilir (bkz. new-program-client.tsx'teki simetrik yorum).
@@ -43,14 +38,15 @@ function deriveLoadType(row: Tables<"exercise_sets">): ExerciseSetFormValues["lo
   return "kg";
 }
 
-function setToInsertColumns(set: ExerciseSetFormValues) {
-  return {
-    load_kg: set.load_type === "kg" ? set.load_kg ?? null : null,
-    percent_1rm: set.load_type === "percent_1rm" ? set.percent_1rm ?? null : null,
-    is_bodyweight: set.load_type === "bodyweight",
-    band_resistance: set.load_type === "band" ? set.band_resistance ?? null : null,
-    rpe: set.rpe ?? null,
-  };
+// start_date + 6 gün = end_date — new-program-client.tsx'in wizard'ının
+// (create_program_with_weeks RPC'si üzerinden) kullandığı AYNI türetme
+// mantığı. update_program_week RPC'si p_end_date'i parametre olarak alıyor
+// (018'in aksine, imza böyle tanımlandı) ama UI bunu hiç göstermiyor/
+// düzenletmiyor — new-program-client'taki gibi otomatik hesaplanıyor.
+function deriveEndDate(startDate: string): string {
+  const d = new Date(startDate + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + 6);
+  return d.toISOString().slice(0, 10);
 }
 
 const DAY_LABELS = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
@@ -78,14 +74,20 @@ const sessionSchema = z.object({
   exercises: z.array(exerciseSchema).default([]),
 });
 
+// scope/team_id/athlete_id BİLEREK yok — update_program_week RPC'si (020)
+// program kapsamını (hangi takım/sporcu) DEĞİŞTİRMEZ, imzasında bu
+// parametreler yok (bkz. 020_update_program_week.sql). Kapsam, program
+// oluşturulduğunda (create_program_with_weeks) sabitlenir; bu form yalnızca
+// içeriği (başlık/faz/not/tarih/seans ağacı) düzenler. Eski davranış
+// (kapsamı burada da değiştirebilme) kaldırıldı — RPC'nin desteklemediği
+// bir alanı editable bırakmak, değişikliğin sessizce kaydedilmemesi
+// riskini taşırdı (BUGS.md'nin tekrar tekrar bulduğu "sessiz" bug sınıfı).
 const programSchema = z.object({
   title: z.string().min(1, "Program başlığı gerekli"),
-  scope: z.enum(["team", "athlete"]),
-  team_id: z.string().optional(),
-  athlete_id: z.string().optional(),
-  week_number: z.number().int().min(1).max(52).optional().or(z.literal(undefined)),
-  start_date: z.string().optional(),
-  end_date: z.string().optional(),
+  // RPC'nin p_start_date'i için zorunlu — new-program-client.tsx ile aynı
+  // kural (BUGS.md'deki start_date/end_date Postgres reddi bug'ının bu
+  // dosya için açık kalan kısmı, bu partiyle kapanıyor).
+  start_date: z.string().min(1, "Başlangıç tarihi gerekli"),
   phase: z.enum(["preparation", "competition", "transition", "peak"]).optional(),
   notes: z.string().optional(),
   sessions: z.array(sessionSchema).default([]),
@@ -119,8 +121,15 @@ export function EditProgramClient({
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [activeSession, setActiveSession] = useState<number | null>(null);
-  const [unpublishWarning, setUnpublishWarning] = useState(false);
+
+  // Program kapsamı sabit — yalnızca gösterim için (bkz. programSchema
+  // üzerindeki yorum). scope/team/athlete adı program.team_id/athlete_id'den
+  // türetiliyor, bir form alanı değil.
+  const scope: "team" | "athlete" = program.team_id ? "team" : "athlete";
+  const scopeTeamName = teams.find((t) => t.id === program.team_id)?.name;
+  const scopeAthleteName = athletes.find((a) => a.id === program.athlete_id)?.full_name;
 
   const defaultSessions = program.training_sessions
     .slice()
@@ -179,12 +188,7 @@ export function EditProgramClient({
     resolver: zodResolver(programSchema),
     defaultValues: {
       title: program.title,
-      scope: program.team_id ? "team" : "athlete",
-      team_id: program.team_id ?? undefined,
-      athlete_id: program.athlete_id ?? undefined,
-      week_number: program.week_number ?? undefined,
       start_date: program.start_date ?? undefined,
-      end_date: program.end_date ?? undefined,
       phase: (program.phase as ProgramForm["phase"]) ?? undefined,
       notes: program.notes ?? undefined,
       sessions: defaultSessions,
@@ -196,25 +200,17 @@ export function EditProgramClient({
     name: "sessions",
   });
 
-  const scope = watch("scope");
-  const selectedTeamId = watch("team_id");
-  const selectedAthleteId = watch("athlete_id");
   const watchedSessions = watch("sessions");
 
   // "Son max" rozeti yalnızca bireysel (athlete) programlarda anlamlı —
   // takım programının tek bir sporcusu yok, bu yüzden team scope'ta boş kalır.
   const pickerAthleteMaxes = useMemo(
     () =>
-      scope === "athlete" && selectedAthleteId
-        ? athleteMaxes.filter((m) => m.athlete_id === selectedAthleteId)
+      scope === "athlete" && program.athlete_id
+        ? athleteMaxes.filter((m) => m.athlete_id === program.athlete_id)
         : [],
-    [athleteMaxes, scope, selectedAthleteId]
+    [athleteMaxes, scope, program.athlete_id]
   );
-
-  const filteredAthletes =
-    scope === "team" && selectedTeamId
-      ? athletes.filter((a) => a.team_id === selectedTeamId)
-      : athletes;
 
   function addSession(dayOfWeek: number) {
     appendSession({
@@ -233,119 +229,34 @@ export function EditProgramClient({
 
   async function onSubmit(data: ProgramForm) {
     setIsSubmitting(true);
+    setSubmitError(null);
     try {
       const supabase = createClient();
 
-      // Yayında olan program düzenlenince taslağa çek
-      const wasPublished = program.is_published;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const db = supabase as any;
 
-      await updateProgram(supabase, program.id, {
-        title: data.title,
-        team_id: data.scope === "team" ? (data.team_id ?? null) : null,
-        athlete_id: data.scope === "athlete" ? (data.athlete_id ?? null) : null,
-        week_number: data.week_number ?? null,
-        start_date: data.start_date ?? null,
-        end_date: data.end_date ?? null,
-        phase: data.phase ?? null,
-        notes: data.notes ?? null,
-        is_published: false,
-      });
+      const { error } = (await db.rpc("update_program_week", {
+        p_program_id: program.id,
+        p_title: data.title,
+        p_phase: data.phase ?? null,
+        p_notes: data.notes ?? null,
+        p_start_date: data.start_date,
+        p_end_date: deriveEndDate(data.start_date),
+        p_sessions: buildSessionsPayload(data.sessions),
+      })) as { error: { message: string } | null };
 
-      // Mevcut seansları ve egzersizleri sil, yeniden oluştur
-      await supabase
-        .from("training_sessions")
-        .delete()
-        .eq("program_id", program.id);
+      if (error) throw new Error(mapRpcError(error.message));
 
-      const sessionBuilder = supabase.from("training_sessions") as unknown as {
-        insert: (v: SessionInsert) => { select: () => { single: () => Promise<{ data: SessionRow | null; error: unknown }> } };
-      };
-
-      const exerciseBuilder = supabase.from("exercises") as unknown as {
-        insert: (v: ExerciseInsert) => { select: () => { single: () => Promise<{ data: ExerciseRow | null; error: unknown }> } };
-      };
-
-      const exerciseSetBuilder = supabase.from("exercise_sets") as unknown as {
-        insert: (v: ExerciseSetInsert[]) => Promise<{ error: unknown }>;
-      };
-
-      for (let i = 0; i < data.sessions.length; i++) {
-        const session = data.sessions[i]!;
-        const sessionPayload: SessionInsert = {
-          program_id: program.id,
-          day_of_week: session.day_of_week,
-          session_type: session.session_type ?? null,
-          title: session.title ?? null,
-          duration_min: session.duration_min ?? null,
-          order_index: i,
-        };
-
-        const { data: dbSession, error: sessionError } = await sessionBuilder
-          .insert(sessionPayload)
-          .select()
-          .single();
-
-        if (sessionError || !dbSession) throw sessionError;
-
-        for (let exIdx = 0; exIdx < session.exercises.length; exIdx++) {
-          const ex = session.exercises[exIdx]!;
-          const exercisePayload: ExerciseInsert = {
-            session_id: dbSession.id,
-            name: ex.name,
-            category: ex.category ?? null,
-            rest_sec: ex.rest_sec ?? null,
-            notes: ex.notes ?? null,
-            order_index: exIdx,
-            superset_group: ex.superset_group ?? null,
-            superset_order: ex.superset_order ?? 0,
-          };
-
-          const { data: dbExercise, error: exError } = await exerciseBuilder
-            .insert(exercisePayload)
-            .select()
-            .single();
-          if (exError || !dbExercise) throw exError;
-
-          const setsPayload: ExerciseSetInsert[] = ex.exercise_sets.map((set, setIdx) => ({
-            exercise_id: dbExercise.id,
-            set_number: setIdx + 1,
-            reps: ex.is_duration_based ? null : set.reps ?? null,
-            duration_sec: ex.is_duration_based ? set.duration_sec ?? null : null,
-            notes: set.notes ?? null,
-            ...setToInsertColumns(set),
-          }));
-
-          const { error: setsError } = await exerciseSetBuilder.insert(setsPayload);
-          if (setsError) throw setsError;
-        }
-      }
-
-      if (wasPublished) {
-        setUnpublishWarning(true);
-      } else {
-        router.push(`/programs/${program.id}`);
-      }
+      router.push(`/programs/${program.id}`);
+    } catch (error) {
+      console.error("Program güncelleme hatası:", error);
+      setSubmitError(
+        error instanceof Error ? error.message : "Program güncellenirken bir hata oluştu."
+      );
     } finally {
       setIsSubmitting(false);
     }
-  }
-
-  if (unpublishWarning) {
-    return (
-      <div className="max-w-md mx-auto mt-24 text-center space-y-4">
-        <div className="flex justify-center">
-          <AlertTriangle className="h-12 w-12 text-amber-500" />
-        </div>
-        <h2 className="text-xl font-semibold">Değişiklikler Kaydedildi</h2>
-        <p className="text-muted-foreground text-sm">
-          Program düzenlendiği için yayından kaldırıldı. Sporcuların görebilmesi için tekrar
-          yayınlamayı unutmayın.
-        </p>
-        <Button onClick={() => router.push(`/programs/${program.id}`)}>
-          Programa Dön
-        </Button>
-      </div>
-    );
   }
 
   return (
@@ -408,60 +319,15 @@ export function EditProgramClient({
               </div>
 
               <div className="space-y-1.5">
-                <Label>Program Kapsamı *</Label>
-                <div className="flex gap-3">
-                  {(["team", "athlete"] as const).map((s) => (
-                    <label key={s} className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        value={s}
-                        checked={scope === s}
-                        onChange={() => {
-                          setValue("scope", s);
-                          setValue("team_id", undefined);
-                          setValue("athlete_id", undefined);
-                        }}
-                        className="accent-primary"
-                      />
-                      <span className="text-sm">{s === "team" ? "Takım" : "Bireysel Sporcu"}</span>
-                    </label>
-                  ))}
-                </div>
+                <Label>Program Kapsamı</Label>
+                <p className="text-sm text-muted-foreground">
+                  {scope === "team"
+                    ? `Takım — ${scopeTeamName ?? "—"}`
+                    : `Sporcu — ${scopeAthleteName ?? "—"}`}
+                  {" "}
+                  <span className="text-xs">(düzenlerken değiştirilemez)</span>
+                </p>
               </div>
-
-              {scope === "team" ? (
-                <div className="space-y-1.5">
-                  <Label htmlFor="team_id">Takım *</Label>
-                  <select
-                    id="team_id"
-                    {...register("team_id")}
-                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                  >
-                    <option value="">Takım seçin</option>
-                    {teams.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              ) : (
-                <div className="space-y-1.5">
-                  <Label htmlFor="athlete_id">Sporcu *</Label>
-                  <select
-                    id="athlete_id"
-                    {...register("athlete_id")}
-                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                  >
-                    <option value="">Sporcu seçin</option>
-                    {filteredAthletes.map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.full_name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
@@ -480,26 +346,11 @@ export function EditProgramClient({
                   </select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="week_number">Hafta No</Label>
-                  <Input
-                    id="week_number"
-                    type="number"
-                    min={1}
-                    max={52}
-                    {...register("week_number", { valueAsNumber: true })}
-                    placeholder="1–52"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="start_date">Başlangıç Tarihi</Label>
+                  <Label htmlFor="start_date">Başlangıç Tarihi *</Label>
                   <Input id="start_date" type="date" {...register("start_date")} />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="end_date">Bitiş Tarihi</Label>
-                  <Input id="end_date" type="date" {...register("end_date")} />
+                  {errors.start_date && (
+                    <p className="text-xs text-destructive">{errors.start_date.message}</p>
+                  )}
                 </div>
               </div>
 
@@ -693,8 +544,8 @@ export function EditProgramClient({
                         </p>
                       </div>
                       <div>
-                        <p className="text-xs text-muted-foreground">Hafta</p>
-                        <p className="font-medium">{data.week_number ?? "—"}</p>
+                        <p className="text-xs text-muted-foreground">Başlangıç Tarihi</p>
+                        <p className="font-medium">{data.start_date || "—"}</p>
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground">Seans Sayısı</p>
@@ -729,14 +580,20 @@ export function EditProgramClient({
                       <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
                         <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
                         <p className="text-xs">
-                          Bu program yayında. Kaydedilince taslağa çekilecek — sporcular tekrar
-                          yayınlayana kadar güncellenmiş halini göremez.
+                          Bu program yayında. Kaydedilince yayında kalacak — sporcular
+                          güncellenmiş halini hemen görecek.
                         </p>
                       </div>
                     )}
                   </div>
                 );
               })()}
+
+              {submitError && (
+                <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
+                  {submitError}
+                </div>
+              )}
 
               <div className="flex justify-between pt-2">
                 <Button type="button" variant="outline" onClick={() => setStep(1)}>

@@ -19,19 +19,7 @@ import type {
   Athlete1RMRecord,
 } from "@athleteiq/db/queries/exercises";
 import { ExerciseList, exerciseSchema } from "@/components/features/program-builder/exercise-list";
-import type { ExerciseSetFormValues } from "@/components/features/program-builder/exercise-list";
-
-// Set bazlı yük tipini exercise_sets kolonlarına çevirir — yalnızca seçili
-// tipin kolonu dolar, diğerleri null (temiz veri, çakışma riski yok).
-function setToInsertColumns(set: ExerciseSetFormValues) {
-  return {
-    load_kg: set.load_type === "kg" ? set.load_kg ?? null : null,
-    percent_1rm: set.load_type === "percent_1rm" ? set.percent_1rm ?? null : null,
-    is_bodyweight: set.load_type === "bodyweight",
-    band_resistance: set.load_type === "band" ? set.band_resistance ?? null : null,
-    rpe: set.rpe ?? null,
-  };
-}
+import { buildSessionsPayload, mapRpcError } from "@/lib/program-rpc";
 
 const DAY_LABELS = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
 
@@ -77,52 +65,6 @@ const programSchema = z.object({
 });
 
 type ProgramForm = z.infer<typeof programSchema>;
-
-// ProgramForm.sessions'ı RPC'nin p_sessions jsonb'sine çevirir. Anahtar isimleri
-// RPC'nin ->>'...' okumalarıyla (018_create_program_with_weeks.sql) birebir
-// eşleşmeli — özellikle egzersizin set listesi RPC'de "sets" anahtarı altında
-// okunuyor, form state'indeki "exercise_sets" değil.
-function buildSessionsPayload(sessions: ProgramForm["sessions"]) {
-  return sessions.map((session, sessionIdx) => ({
-    day_of_week: session.day_of_week,
-    session_type: session.session_type ?? null,
-    title: session.title ?? null,
-    duration_min: session.duration_min ?? null,
-    order_index: sessionIdx,
-    exercises: session.exercises.map((ex, exIdx) => ({
-      name: ex.name,
-      category: ex.category ?? null,
-      rest_sec: ex.rest_sec ?? null,
-      notes: ex.notes ?? null,
-      order_index: exIdx,
-      superset_group: ex.superset_group ?? null,
-      superset_order: ex.superset_order ?? 0,
-      sets: ex.exercise_sets.map((set, setIdx) => ({
-        set_number: setIdx + 1,
-        reps: ex.is_duration_based ? null : set.reps ?? null,
-        duration_sec: ex.is_duration_based ? set.duration_sec ?? null : null,
-        notes: set.notes ?? null,
-        ...setToInsertColumns(set),
-      })),
-    })),
-  }));
-}
-
-// RPC'nin RAISE EXCEPTION mesajlarını (018_create_program_with_weeks.sql) kısa,
-// okunaklı bir kullanıcı mesajına çevirir — ham Postgres/plpgsql hatası forma
-// direkt yansımasın (BUGS.md'deki "ham hata mesajı" şikayetinin genellenmiş hali).
-function mapRpcError(rawMessage: string): string {
-  if (rawMessage.includes("yetkisiz")) {
-    return "Bu işlemi yapmaya yetkiniz yok.";
-  }
-  if (rawMessage.includes("p_team_id ve p_athlete_id")) {
-    return "Program kapsamı (takım veya sporcu) hatalı seçilmiş.";
-  }
-  if (rawMessage.includes("week_number") || rawMessage.toLowerCase().includes("between 1 and 52")) {
-    return "Seçilen başlangıç tarihi ve hafta sayısı geçerli bir takvim yılına sığmıyor. Farklı bir başlangıç tarihi deneyin.";
-  }
-  return "Program kaydedilirken bir hata oluştu. Lütfen tekrar deneyin.";
-}
 
 interface Props {
   orgId: string;
