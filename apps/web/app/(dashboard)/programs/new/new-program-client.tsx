@@ -156,34 +156,40 @@ export function NewProgramClient({
     try {
       const supabase = createClient();
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const db = supabase as any;
-
-      const { data: result, error } = (await db.rpc("create_program_with_weeks", {
+      // create_program_with_weeks (018_create_program_with_weeks.sql) p_team_id/
+      // p_athlete_id/p_phase/p_notes parametrelerini nullable olarak kabul
+      // ediyor, ama `supabase gen types` bunu Args'ta yansıtmıyor (nullable
+      // olmayan `string` üretiyor) — bilinen bir gen-types kısıtı, fonksiyonun
+      // kendisine değil. `as string` yalnızca bu 4 parametre için dar bir
+      // düzeltme.
+      const { data: result, error } = await supabase.rpc("create_program_with_weeks", {
         p_org_id: orgId,
-        p_team_id: data.scope === "team" ? (data.team_id ?? null) : null,
-        p_athlete_id: data.scope === "athlete" ? (data.athlete_id ?? null) : null,
+        p_team_id: (data.scope === "team" ? (data.team_id ?? null) : null) as string,
+        p_athlete_id: (data.scope === "athlete" ? (data.athlete_id ?? null) : null) as string,
         p_title: data.title,
-        p_phase: data.phase ?? null,
-        p_notes: data.notes ?? null,
+        p_phase: (data.phase ?? null) as string,
+        p_notes: (data.notes ?? null) as string,
         p_weeks_count: data.weeks_count,
         p_block_start_date: data.start_date,
         p_sessions: buildSessionsPayload(data.sessions),
-      })) as {
-        data: { block_id: string | null; program_ids: string[] } | null;
-        error: { message: string } | null;
-      };
+      });
 
       if (error) throw new Error(mapRpcError(error.message));
-      if (!result || result.program_ids.length === 0) {
+
+      // RPC'nin dönüş tipi Postgres'te jsonb, gen-types bunu genel `Json`
+      // birleşimine indirgiyor — gerçek şekil (`018_create_program_with_weeks.sql`
+      // dönüşü) burada dar bir cast ile geri kazanılıyor.
+      const typedResult = result as { block_id: string | null; program_ids: string[] } | null;
+
+      if (!typedResult || typedResult.program_ids.length === 0) {
         throw new Error("Program oluşturulamadı.");
       }
 
-      if (result.block_id) {
+      if (typedResult.block_id) {
         alert(`${data.weeks_count} hafta oluşturuldu.`);
       }
 
-      router.push(`/programs/${result.program_ids[0]}`);
+      router.push(`/programs/${typedResult.program_ids[0]}`);
     } catch (error) {
       console.error("Program kayıt hatası:", error);
       setSubmitError(

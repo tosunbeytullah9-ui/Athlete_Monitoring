@@ -1,8 +1,17 @@
 import { createServerClient } from "@supabase/ssr";
 import type { CookieOptions } from "@supabase/ssr";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import type { Database } from "@athleteiq/db/types";
 
+// @supabase/ssr@0.5.2'nin peer dependency'si @supabase/supabase-js
+// ^2.43.4 bekliyor ama yüklü sürüm 2.108.2 — iki sürüm arasında
+// SupabaseClient generic imzası (3 generic → 5 generic) değişmiş,
+// createBrowserClient/createServerClient hâlâ eski imzayla çağırıyor.
+// Bu assertion SADECE bu tip uyuşmazlığını düzeltir, runtime davranışı
+// değiştirmez. @supabase/ssr ileride uyumlu bir sürüme yükseltilirse
+// (peer dep aralığı gerçekten hizalanınca) bu assertion kaldırılabilir
+// — bkz. BUGS.md.
 export async function createClient() {
   const cookieStore = await cookies();
 
@@ -25,7 +34,7 @@ export async function createClient() {
         },
       },
     }
-  );
+  ) as unknown as SupabaseClient<Database, "public">;
 }
 
 export async function createServiceClient() {
@@ -48,5 +57,5 @@ export async function createServiceClient() {
         },
       },
     }
-  );
+  ) as unknown as SupabaseClient<Database, "public">;
 }

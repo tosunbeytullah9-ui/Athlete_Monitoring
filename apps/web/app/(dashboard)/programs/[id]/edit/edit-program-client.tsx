@@ -272,18 +272,19 @@ export function EditProgramClient({
     try {
       const supabase = createClient();
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const db = supabase as any;
-
-      const { error } = (await db.rpc("update_program_week", {
+      // update_program_week (020_update_program_week.sql) p_phase/p_notes'u
+      // nullable kabul ediyor, ama `supabase gen types` bunu Args'ta yansıtmıyor
+      // (bilinen gen-types kısıtı, bkz. new-program-client.tsx'teki aynı not) —
+      // `as string` yalnızca bu 2 parametre için dar bir düzeltme.
+      const { error } = await supabase.rpc("update_program_week", {
         p_program_id: program.id,
         p_title: data.title,
-        p_phase: data.phase ?? null,
-        p_notes: data.notes ?? null,
+        p_phase: (data.phase ?? null) as string,
+        p_notes: (data.notes ?? null) as string,
         p_start_date: data.start_date,
         p_end_date: deriveEndDate(data.start_date),
         p_sessions: buildSessionsPayload(data.sessions),
-      })) as { error: { message: string } | null };
+      });
 
       if (error) throw new Error(mapRpcError(error.message));
 
@@ -307,12 +308,10 @@ export function EditProgramClient({
     setPropagateError(null);
     try {
       const supabase = createClient();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const db = supabase as any;
 
-      const { error } = (await db.rpc("propagate_week_to_future", {
+      const { error } = await supabase.rpc("propagate_week_to_future", {
         p_source_program_id: program.id,
-      })) as { error: { message: string } | null };
+      });
 
       if (error) throw new Error(mapRpcError(error.message));
 
