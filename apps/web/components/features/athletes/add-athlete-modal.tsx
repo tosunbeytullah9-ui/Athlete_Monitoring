@@ -27,22 +27,89 @@ export function AddAthleteModal({ teams, orgId, onSuccess }: Props) {
     register,
     handleSubmit,
     reset,
+    watch,
+    setError,
     formState: { errors },
   } = useForm<CreateAthleteInput>({
     resolver: zodResolver(createAthleteSchema),
+    defaultValues: { create_login: false },
   });
+
+  const createLogin = watch("create_login");
+
+  // Toggle KAPALI: mevcut davranış — doğrudan roster-only insert, DOKUNULMADI.
+  // (data'yı olduğu gibi spread etmiyoruz: data artık create_login/username/password
+  // da taşıyor, bunlar athletes tablosunda kolon değil — insert'e sızmasınlar.)
+  async function submitRosterOnly(data: CreateAthleteInput) {
+    const supabase = createClient();
+    await createAthlete(supabase, {
+      full_name: data.full_name,
+      team_id: data.team_id,
+      birth_date: data.birth_date,
+      gender: data.gender,
+      height_cm: data.height_cm ?? null,
+      weight_kg: data.weight_kg ?? null,
+      position: data.position,
+      notes: data.notes,
+      org_id: orgId,
+    });
+  }
+
+  // Toggle AÇIK: create-athlete-account Edge Function'ına, mevcut invite-member
+  // proxy deseniyle (apps/web/app/api/auth/invite/route.ts) aynı şekilde
+  // kurulmuş /api/athletes/create-account route'u üzerinden istek atılır.
+  // Döner: başarıysa true, hata inline gösterilip false döner (modal açık kalır).
+  async function submitWithLogin(data: CreateAthleteInput): Promise<boolean> {
+    const res = await fetch("/api/athletes/create-account", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: data.username,
+        password: data.password,
+        full_name: data.full_name,
+        org_id: orgId,
+        team_id: data.team_id,
+        birth_date: data.birth_date,
+        gender: data.gender,
+        height_cm: data.height_cm,
+        weight_kg: data.weight_kg,
+        position: data.position,
+        notes: data.notes,
+      }),
+    });
+
+    const result = await res.json();
+
+    if (!res.ok) {
+      const message: string = result.error ?? "Sporcu hesabı oluşturulamadı.";
+      if (res.status === 409) {
+        setError("username", {
+          type: "server",
+          message: "Bu kullanıcı adı alınmış, başka bir tane deneyin",
+        });
+      } else if (res.status === 400 && message.includes("Kullanıcı adı")) {
+        setError("username", { type: "server", message });
+      } else if (res.status === 400 && message.includes("Parola")) {
+        setError("password", { type: "server", message });
+      } else {
+        setSubmitError(message);
+      }
+      return false;
+    }
+
+    return true;
+  }
 
   async function onSubmit(data: CreateAthleteInput) {
     setIsSubmitting(true);
     setSubmitError(null);
     try {
-      const supabase = createClient();
-      await createAthlete(supabase, {
-        ...data,
-        org_id: orgId,
-        height_cm: data.height_cm ?? null,
-        weight_kg: data.weight_kg ?? null,
-      });
+      if (data.create_login) {
+        const ok = await submitWithLogin(data);
+        if (!ok) return;
+      } else {
+        await submitRosterOnly(data);
+      }
       reset();
       setOpen(false);
       onSuccess();
@@ -160,6 +227,48 @@ export function AddAthleteModal({ teams, orgId, onSuccess }: Props) {
                 placeholder="İsteğe bağlı notlar..."
               />
             </div>
+
+            <div className="flex items-center gap-2 border-t pt-4">
+              <input
+                id="create_login"
+                type="checkbox"
+                {...register("create_login")}
+                className="h-4 w-4 rounded border-input"
+              />
+              <Label htmlFor="create_login" className="cursor-pointer font-normal">
+                Giriş erişimi oluştur (kullanıcı adı ve şifre)
+              </Label>
+            </div>
+
+            {createLogin && (
+              <div className="space-y-4 rounded-md bg-muted/30 p-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="username">Kullanıcı adı *</Label>
+                  <Input
+                    id="username"
+                    autoComplete="off"
+                    {...register("username")}
+                    placeholder="orn. kerem.sener"
+                  />
+                  {errors.username && (
+                    <p className="text-xs text-destructive">{errors.username.message}</p>
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="password">Şifre *</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    autoComplete="new-password"
+                    {...register("password")}
+                    placeholder="En az 6 karakter"
+                  />
+                  {errors.password && (
+                    <p className="text-xs text-destructive">{errors.password.message}</p>
+                  )}
+                </div>
+              </div>
+            )}
 
             {submitError && (
               <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
