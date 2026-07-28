@@ -736,7 +736,7 @@ Aşağıdaki agent'ların her biri bir uzman gibi davranır. Görev başlamadan 
 [ ] apps/web/lib/supabase/server.ts → Server component client
 [ ] apps/web/lib/supabase/client.ts → Client component client
 [ ] apps/web/lib/hooks/useUserContext.ts → Role + org + team bilgisi hook
-[ ] apps/web/app/(auth)/login/page.tsx → Magic link + email/password login
+[ ] apps/web/app/(auth)/login/page.tsx → E-posta veya kullanıcı adı + şifre ile giriş (Magic Link Parti 4.D'de tamamen kaldırıldı)
 [ ] apps/web/app/(auth)/invite/[token]/page.tsx → Davet kabul sayfası
 [ ] supabase/functions/invite-member/ → Edge Function: davet emaili gönder
 [ ] packages/validators/auth.ts → Login, davet Zod şemaları
@@ -1073,7 +1073,7 @@ Proje, aşağıdakiler çalışır durumda olunca MVP sayılır:
 - **Email:** tosunbeytullah9@gmail.com | **Şifre:** AthleteIQ2026
 
 ### Çalışan Özellikler (2026-06-26 itibarıyla)
-- ✅ Auth: login, magic link, invite kabul, middleware (role-based routing)
+- ✅ Auth: login (e-posta veya kullanıcı adı + şifre — Magic Link kaldırıldı, Parti 4.D), invite kabul, kullanıcı-adı tabanlı sporcu hesabı oluşturma (Parti 4.B/4.C), middleware (role-based routing)
 - ✅ Sporcu yönetimi: listeleme, arama, ekleme, detay
 - ✅ Program yönetimi: oluşturma, listeleme, detay, publish
 - ✅ ACWR: log girişi + dashboard
