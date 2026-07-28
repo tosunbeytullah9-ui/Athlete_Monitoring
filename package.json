@@ -15,7 +15,8 @@
     "test:e2e": "playwright test",
     "lint": "turbo lint",
     "format": "prettier --write \"**/*.{ts,tsx,json,md}\"",
-    "db:gen:types": "supabase gen types typescript --local > packages/db/types.ts"
+    "db:gen:types": "supabase gen types typescript --local > packages/db/types.ts",
+    "docs:sync": "node scripts/docs-sync.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.45.0",

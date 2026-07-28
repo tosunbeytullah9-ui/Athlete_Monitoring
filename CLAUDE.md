@@ -48,7 +48,7 @@ Next.js 15 (App Router — pages router YASAK)
 React 19
 TailwindCSS 4.x
 shadcn/ui (Radix UI tabanlı)
-TanStack Query v5 (server state)
+Server Components + `router.refresh()` (server state — TanStack Query bağımlılığı package.json'da var ama HİÇBİR yerde kullanılmıyor; bkz. §6 Agent 3 "UI kuralları")
 Zustand (client state — sadece UI state için)
 React Hook Form + Zod (form validation)
 Recharts (grafikler)
@@ -109,334 +109,173 @@ Playwright (E2E testler)
 
 ## 2. MONOREPO KLASÖR YAPISI
 
+<!-- AUTO-GENERATED:TREE:START -->
 ```
-athleteiq/
-├── CLAUDE.md                        ← Bu dosya — hiç silinmez
-├── package.json                     ← pnpm workspace root
-├── turbo.json                       ← Turborepo pipeline
-├── .env.example                     ← Tüm env variable şablonu
-│
+AthleteIQ/
+├── .claude/
+│   ├── scheduled_tasks.lock
+│   └── settings.local.json
 ├── apps/
-│   ├── web/                         ← Next.js 15 — Koç & Admin paneli
+│   ├── mobile/
 │   │   ├── app/
-│   │   │   ├── (auth)/             ← Login, register, invite-accept
-│   │   │   ├── (dashboard)/        ← Protected routes
-│   │   │   │   ├── athletes/       ← Sporcu listesi + detay
-│   │   │   │   ├── programs/       ← Program oluştur + listele
-│   │   │   │   ├── competitions/   ← Yarışma takvimi
-│   │   │   │   ├── tests/          ← Test sonuçları
-│   │   │   │   ├── acwr/           ← ACWR dashboard
-│   │   │   │   ├── wearables/      ← Wearable bağlantı yönetimi
-│   │   │   │   └── settings/       ← Org + takım ayarları
-│   │   │   └── admin/              ← Super admin panel
 │   │   ├── components/
-│   │   │   ├── ui/                 ← shadcn components (dokunulma)
-│   │   │   ├── features/           ← Feature-specific components
-│   │   │   └── shared/             ← Header, sidebar, layout
 │   │   ├── lib/
-│   │   │   ├── supabase/           ← server.ts, client.ts, middleware.ts
-│   │   │   ├── hooks/              ← useUserContext, useRealtime vb.
-│   │   │   └── utils/              ← acwr.ts, date.ts, format.ts
-│   │   └── middleware.ts            ← Auth + tenant routing
-│   │
-│   └── mobile/                      ← Expo — Sporcu uygulaması
+│   │   ├── .env
+│   │   ├── .gitignore
+│   │   ├── app.json
+│   │   ├── babel.config.js
+│   │   ├── eslint.config.js
+│   │   ├── global.css
+│   │   ├── metro.config.js
+│   │   ├── nativewind-env.d.ts
+│   │   ├── package.json
+│   │   ├── tailwind.config.js
+│   │   └── tsconfig.json
+│   └── web/
 │       ├── app/
-│       │   ├── (auth)/             ← Login
-│       │   └── (tabs)/             ← Ana tab navigator
-│       │       ├── program/        ← Günlük/haftalık program
-│       │       ├── recovery/       ← WHOOP/Polar verileri
-│       │       ├── competitions/   ← Yaklaşan yarışmalar
-│       │       └── profile/        ← Profil + wearable bağlantı
 │       ├── components/
 │       ├── lib/
-│       │   ├── supabase.ts
-│       │   └── notifications.ts
-│       └── app.json
-│
+│       ├── .env.local
+│       ├── .env.local.testcheck
+│       ├── eslint.config.mjs
+│       ├── middleware.ts
+│       ├── next-env.d.ts
+│       ├── next.config.ts
+│       ├── package.json
+│       ├── postcss.config.mjs
+│       ├── tsconfig.json
+│       └── tsconfig.tsbuildinfo
 ├── packages/
-│   ├── db/                          ← Supabase tip tanımları
-│   │   ├── types.ts                ← Otomatik üretilen DB tipleri
-│   │   └── queries/                ← Paylaşılan query fonksiyonları
-│   ├── ui/                          ← Paylaşılan UI bileşenleri (web+mobile ortak)
-│   ├── validators/                  ← Zod şemaları (web+mobile paylaşır)
-│   └── integrations/                ← Wearable adaptörleri
-│       ├── whoop/
-│       │   ├── client.ts           ← WHOOP v2 API client
-│       │   ├── oauth.ts            ← Token yönetimi
-│       │   ├── types.ts            ← WHOOP veri tipleri
-│       │   └── normalize.ts        ← WHOOP → ortak şema dönüşümü
-│       └── polar/
-│           ├── client.ts           ← Polar AccessLink v4 client
-│           ├── oauth.ts            ← Token yönetimi
-│           ├── transaction.ts      ← Transaction-based fetch mantığı
-│           ├── types.ts            ← Polar veri tipleri
-│           └── normalize.ts        ← Polar → ortak şema dönüşümü
-│
-└── supabase/
-    ├── migrations/
-    │   ├── 001_schema.sql          ← Temel tablolar
-    │   ├── 002_rls.sql             ← Row Level Security politikaları
-    │   ├── 003_functions.sql       ← Helper fonksiyonlar
-    │   └── 004_wearables.sql       ← Wearable token tabloları
-    ├── functions/
-    │   ├── whoop-webhook/          ← WHOOP event handler
-    │   ├── polar-sync/             ← Polar transaction poller
-    │   └── invite-member/          ← Davet email sender
-    └── seed.sql                    ← Geliştirme test verisi
+│   ├── db/
+│   │   ├── queries/
+│   │   ├── index.ts
+│   │   ├── package.json
+│   │   ├── tsconfig.json
+│   │   └── types.ts
+│   ├── integrations/
+│   │   ├── polar/
+│   │   ├── whoop/
+│   │   ├── package.json
+│   │   └── tsconfig.json
+│   ├── ui/
+│   │   ├── components/
+│   │   ├── lib/
+│   │   ├── index.ts
+│   │   ├── package.json
+│   │   └── tsconfig.json
+│   └── validators/
+│       ├── acwr.ts
+│       ├── athlete.ts
+│       ├── auth.ts
+│       ├── index.ts
+│       ├── package.json
+│       ├── program.ts
+│       ├── team.ts
+│       └── tsconfig.json
+├── patches/
+│   └── react-native-css-interop@0.2.6.patch
+├── scripts/
+│   ├── docs-sync.mjs
+│   └── table-descriptions.json
+├── supabase/
+│   ├── .temp/
+│   │   ├── cli-latest
+│   │   ├── gotrue-version
+│   │   ├── linked-project.json
+│   │   ├── pooler-url
+│   │   ├── postgres-version
+│   │   ├── project-ref
+│   │   ├── rest-version
+│   │   └── storage-version
+│   ├── functions/
+│   │   ├── create-athlete-account/
+│   │   ├── invite-member/
+│   │   ├── polar-sync/
+│   │   └── whoop-webhook/
+│   ├── migrations/
+│   │   ├── 001_schema.sql
+│   │   ├── 002_rls.sql
+│   │   ├── 003_functions.sql
+│   │   ├── 004_wearables.sql
+│   │   ├── 005_exercises.sql
+│   │   ├── 006_exercise_seed.sql
+│   │   ├── 008_rls_signup.sql
+│   │   ├── 009_security_fixes.sql
+│   │   ├── 010_trial.sql
+│   │   ├── 011_realtime.sql
+│   │   ├── 012_wellness.sql
+│   │   ├── 013_readiness_scores.sql
+│   │   ├── 014_exercise_sets.sql
+│   │   ├── 015_exercise_sets_fixes.sql
+│   │   ├── 016_session_rpe.sql
+│   │   ├── 017_program_blocks.sql
+│   │   ├── 018_create_program_with_weeks.sql
+│   │   ├── 019_shared_session_tree_insert.sql
+│   │   ├── 020_update_program_week.sql
+│   │   ├── 021_propagate_week.sql
+│   │   └── 022_add_athlete_username.sql
+│   ├── snippets/
+│   ├── config.toml
+│   └── seed.sql
+├── .env
+├── .env.example
+├── .gitignore
+├── .npmrc
+├── .prettierignore
+├── .prettierrc
+├── BUGS.md
+├── CLAUDE.md
+├── MOBILE_STATUS.md
+├── package.json
+├── pnpm-lock.yaml
+├── pnpm-workspace.yaml
+├── PROGRESS.md
+├── READINESS_PLAN.md
+├── tsconfig.base.json
+└── turbo.json
 ```
+<!-- AUTO-GENERATED:TREE:END -->
+
+> Not: `packages/ui` yalnızca `apps/web` tarafından kullanılır (Radix UI tabanlı bileşenler, React Native ile uyumsuz — `apps/mobile`'da hiçbir referans yok). Mobile kendi bileşenlerini (`apps/mobile/components/`) kullanır.
 
 ---
 
-## 3. VERİTABANI ŞEMASİ (TAM)
+## 3. VERİTABANI ŞEMASİ
 
-### 3.1 Core Tablolar
+> Tam DDL için `supabase/migrations/`, kolon tipleri için `packages/db/types.ts` bakın. Aşağıdaki liste her tablonun amacını özetler; açıklamalar `scripts/table-descriptions.json`'dan gelir ve `pnpm docs:sync` ile güncellenir.
 
-```sql
--- =============================================
--- 001_schema.sql
--- =============================================
-
--- ORGANIZASYONLAR (Her müşteri = bir tenant)
-create table organizations (
-  id           uuid primary key default gen_random_uuid(),
-  name         text not null,
-  slug         text unique not null,  -- URL prefix: app.athleteiq.com/tgf
-  plan         text default 'free' check (plan in ('free', 'pro', 'enterprise')),
-  logo_url     text,
-  created_at   timestamptz default now(),
-  updated_at   timestamptz default now()
-);
-
--- TAKIMLAR
-create table teams (
-  id           uuid primary key default gen_random_uuid(),
-  org_id       uuid references organizations(id) on delete cascade not null,
-  name         text not null,
-  discipline   text,  -- 'artistic', 'rhythmic', 'trampoline', 'diving', vb.
-  created_at   timestamptz default now()
-);
-
--- ÜYELİKLER (Kullanıcı-Org-Takım-Rol ilişkisi)
-create table memberships (
-  id           uuid primary key default gen_random_uuid(),
-  user_id      uuid references auth.users(id) on delete cascade not null,
-  org_id       uuid references organizations(id) on delete cascade not null,
-  team_id      uuid references teams(id) on delete set null,
-  role         text check (role in ('admin', 'coach', 'athlete')) not null,
-  invited_by   uuid references auth.users(id),
-  joined_at    timestamptz default now(),
-  unique (user_id, org_id)
-);
-
--- SPORCULAR
-create table athletes (
-  id           uuid primary key default gen_random_uuid(),
-  user_id      uuid references auth.users(id) on delete set null unique,
-  org_id       uuid references organizations(id) on delete cascade not null,
-  team_id      uuid references teams(id) on delete set null not null,
-  full_name    text not null,
-  birth_date   date,
-  gender       text check (gender in ('male', 'female', 'other')),
-  height_cm    numeric,
-  weight_kg    numeric,
-  position     text,
-  avatar_url   text,
-  notes        text,
-  is_active    boolean default true,
-  created_at   timestamptz default now(),
-  updated_at   timestamptz default now()
-);
-
--- ANTRENMAN PROGRAMLARI
--- Kural: team_id XOR athlete_id (ikisi aynı anda dolu olamaz)
-create table training_programs (
-  id           uuid primary key default gen_random_uuid(),
-  org_id       uuid references organizations(id) on delete cascade not null,
-  team_id      uuid references teams(id) on delete cascade,
-  athlete_id   uuid references athletes(id) on delete cascade,
-  created_by   uuid references auth.users(id),
-  title        text not null,
-  week_number  int check (week_number between 1 and 52),
-  start_date   date,
-  end_date     date,
-  phase        text,  -- 'preparation', 'competition', 'transition', 'peak'
-  notes        text,
-  is_published boolean default false,  -- false iken sporcu görmez
-  created_at   timestamptz default now(),
-  updated_at   timestamptz default now(),
-  constraint program_scope_check check (
-    (team_id is not null and athlete_id is null) or
-    (athlete_id is not null and team_id is null)
-  )
-);
-
--- ANTRENMAN SEANSLARİ
-create table training_sessions (
-  id           uuid primary key default gen_random_uuid(),
-  program_id   uuid references training_programs(id) on delete cascade not null,
-  day_of_week  int check (day_of_week between 1 and 7),  -- 1=Pazartesi
-  session_type text,  -- 'strength', 'conditioning', 'technical', 'recovery', 'competition'
-  title        text,
-  description  text,
-  duration_min int,
-  order_index  int default 0
-);
-
--- EGZERSİZLER
-create table exercises (
-  id           uuid primary key default gen_random_uuid(),
-  session_id   uuid references training_sessions(id) on delete cascade not null,
-  name         text not null,
-  category     text,  -- 'squat', 'push', 'pull', 'hinge', 'carry', 'skill'
-  sets         int,
-  reps         int,
-  duration_sec int,   -- reps yerine süre bazlı egzersizler için
-  load_kg      numeric,
-  load_percent numeric, -- 1RM yüzdesi
-  rest_sec     int,
-  unit         text default 'kg' check (unit in ('kg', 'lb', '%', 'bodyweight')),
-  notes        text,
-  order_index  int default 0
-);
-
--- ACWR KAYITLARI (sRPE yöntemi)
-create table acwr_logs (
-  id            uuid primary key default gen_random_uuid(),
-  athlete_id    uuid references athletes(id) on delete cascade not null,
-  log_date      date not null,
-  session_rpe   numeric check (session_rpe between 0 and 10),
-  duration_min  int,
-  session_load  numeric generated always as (session_rpe * duration_min) stored,
-  acute_load    numeric,   -- 7 günlük ortalama
-  chronic_load  numeric,   -- 28 günlük ortalama
-  acwr_ratio    numeric generated always as (
-    case when chronic_load > 0 then acute_load / chronic_load else null end
-  ) stored,
-  notes         text,
-  created_at    timestamptz default now(),
-  unique (athlete_id, log_date)
-);
-
--- YARIŞMALAR
-create table competitions (
-  id               uuid primary key default gen_random_uuid(),
-  org_id           uuid references organizations(id) on delete cascade not null,
-  team_id          uuid references teams(id) on delete set null,  -- null = bireysel
-  name             text not null,
-  competition_date date,
-  location         text,
-  level            text,  -- 'international', 'national', 'regional', 'local'
-  notes            text
-);
-
--- YARIŞMA SONUÇLARI
-create table competition_results (
-  id             uuid primary key default gen_random_uuid(),
-  competition_id uuid references competitions(id) on delete cascade not null,
-  athlete_id     uuid references athletes(id) on delete cascade not null,
-  event          text,    -- yarışma disiplini (örn: "Floor Exercise")
-  score          numeric,
-  rank           int,
-  notes          text
-);
-
--- TEST SONUÇLARI
-create table test_results (
-  id          uuid primary key default gen_random_uuid(),
-  athlete_id  uuid references athletes(id) on delete cascade not null,
-  test_date   date not null,
-  test_type   text not null,  -- 'CMJ', 'SJ', 'sprint_30m', '1RM_squat', 'FMS', vb.
-  value       numeric,
-  unit        text,           -- 'cm', 'kg', 's', 'score'
-  notes       text,
-  created_at  timestamptz default now()
-);
-```
-
-### 3.2 Wearable Tabloları
-
-```sql
--- =============================================
--- 004_wearables.sql
--- =============================================
-
--- WEARABLE BAĞLANTI TOKENLAR (şifreli saklanır)
-create table wearable_connections (
-  id              uuid primary key default gen_random_uuid(),
-  athlete_id      uuid references athletes(id) on delete cascade not null,
-  provider        text check (provider in ('whoop', 'polar')) not null,
-  access_token    text not null,   -- pgcrypto ile şifrele
-  refresh_token   text,
-  token_expires_at timestamptz,
-  provider_user_id text,           -- WHOOP user_id veya Polar user_id
-  scopes          text[],
-  last_synced_at  timestamptz,
-  is_active       boolean default true,
-  created_at      timestamptz default now(),
-  unique (athlete_id, provider)
-);
-
--- NORMALIZE EDİLMİŞ WEARABLE VERİSİ (ortak şema)
-create table wearable_daily_metrics (
-  id                uuid primary key default gen_random_uuid(),
-  athlete_id        uuid references athletes(id) on delete cascade not null,
-  provider          text check (provider in ('whoop', 'polar')) not null,
-  metric_date       date not null,
-
-  -- Recovery
-  recovery_score    numeric,       -- WHOOP: 0-100%, Polar: ANS charge
-  hrv_rmssd        numeric,       -- ms
-  resting_hr        numeric,       -- bpm
-  spo2              numeric,       -- %
-
-  -- Sleep
-  sleep_score       numeric,
-  total_sleep_min   int,
-  deep_sleep_min    int,
-  rem_sleep_min     int,
-  sleep_efficiency  numeric,       -- %
-
-  -- Load/Strain
-  strain_score      numeric,       -- WHOOP: 0-21, Polar: cardio load
-  muscle_load       numeric,       -- Polar Training Load Pro
-  active_calories   int,
-
-  -- Raw provider response (debug için)
-  raw_data          jsonb,
-
-  created_at        timestamptz default now(),
-  unique (athlete_id, provider, metric_date)
-);
-
--- WHOOP spesifik — cycle bazlı model
-create table whoop_cycles (
-  id              uuid primary key default gen_random_uuid(),
-  athlete_id      uuid references athletes(id) on delete cascade not null,
-  whoop_cycle_id  text unique not null,  -- v2 UUID
-  cycle_start     timestamptz,
-  cycle_end       timestamptz,
-  strain_score    numeric,
-  avg_hr          int,
-  max_hr          int,
-  kilojoules      numeric,
-  raw_data        jsonb,
-  synced_at       timestamptz default now()
-);
-
--- POLAR spesifik — transaction tracking
-create table polar_sync_state (
-  id              uuid primary key default gen_random_uuid(),
-  athlete_id      uuid references athletes(id) on delete cascade not null,
-  resource_type   text,  -- 'exercises', 'sleep', 'activity'
-  last_tx_id      text,  -- Son commit edilen transaction ID
-  last_synced_at  timestamptz,
-  unique (athlete_id, resource_type)
-);
-```
+<!-- AUTO-GENERATED:SCHEMA:START -->
+- **acwr_logs** — sRPE yöntemiyle günlük antrenman yükü ve hesaplanan ACWR (Acute:Chronic Workload Ratio) oranı (001_schema.sql).
+- **athlete_1rm_records** — Sporcunun kayıtlı 1RM (bir tekrar maksimum) değerleri; %1RM bazlı yük hesaplama ve program builder'daki "Son max" rozeti bu tablodan beslenir (005_exercises.sql, UI kablolaması Parti 2.2.E).
+- **athlete_push_tokens** — Sporcunun Expo push notification token'ı; koç bir programı publish ettiğinde mobil bildirim göndermek için kullanılır (004_wearables.sql).
+- **athletes** — Sporcu profili — organizasyon ve takıma bağlı, opsiyonel auth kullanıcısı, doğum tarihi/boy/kilo/pozisyon vb. (001_schema.sql).
+- **competition_results** — Bir sporcunun bir yarışmadaki sonucu (event/score/rank) (001_schema.sql).
+- **competitions** — Organizasyona ait yarışma/müsabaka (takım veya bireysel) (001_schema.sql).
+- **exercise_sets** — Bir egzersize ait set bazlı yük/RPE/tekrar kaydı; exercises tablosundaki tekil kg/RPE/% alanlarının yerini alan set-bazlı model (014_exercise_sets.sql, Parti 2.1).
+- **exercises** — Bir seansa ait tekil egzersiz kaydı (sets/reps/load) — set bazlı detay için bkz. exercise_sets (001_schema.sql).
+- **memberships** — Kullanıcı-organizasyon-takım-rol ilişkisi (admin/coach/athlete); bir kullanıcının bir org'daki tek yetkisi (001_schema.sql).
+- **org_exercise_categories** — Bir organizasyona özel, platform kütüphanesini genişleten egzersiz kategorileri (005_exercises.sql).
+- **org_exercises** — Bir organizasyona özel, platform kütüphanesinde bulunmayan egzersiz tanımları (005_exercises.sql).
+- **organizations** — Her müşteri (federasyon/kulüp) için bir tenant kaydı; plan (free/pro/enterprise) ve slug (URL prefix) burada tutulur (001_schema.sql).
+- **platform_exercises** — Platform genelinde salt-okunur, global egzersiz kütüphanesi (135 egzersiz, 16 hareket paterni — 006_exercise_seed.sql ile dolduruldu) (005_exercises.sql).
+- **polar_sync_state** — Polar'ın transaction-tabanlı senkronizasyon modelinde, kaynak tipi başına son commit edilen transaction ID'si (004_wearables.sql).
+- **program_blocks** — Birden fazla haftalık training_programs satırını ortak bir döneme (örn. "8 Haftalık Hazırlık Dönemi") gruplayan üst seviye konteyner (017_program_blocks.sql, Parti 3.B).
+- **readiness_scores** — wellness_checkins'ten türetilen, bireysel taban çizgisine dayalı readiness skoru cache'i; sadece service_role/Edge Function yazar, hesaplama motoru henüz aktif değil (şema hazır) (013_readiness_scores.sql).
+- **teams** — Bir organizasyona bağlı takım (discipline: artistic/rhythmic/trampoline/diving vb.) (001_schema.sql).
+- **test_results** — Sporcu fiziksel test sonuçları (CMJ, sprint, kuvvet testleri vb. — bkz. ayrıca athlete_1rm_records) (001_schema.sql).
+- **training_programs** — Takıma VEYA bireysel sporcuya atanan haftalık antrenman programı (team_id XOR athlete_id); is_published=false iken sporcu göremez (001_schema.sql).
+- **training_sessions** — Bir programa ait, haftanın belirli bir gününe düşen antrenman seansı (strength/conditioning/technical/recovery/competition) (001_schema.sql).
+- **wearable_connections** — Sporcunun WHOOP/Polar hesabına bağlı OAuth access/refresh token'ları (şifreli saklanır) (004_wearables.sql).
+- **wearable_daily_metrics** — WHOOP ve Polar'dan normalize edilmiş, ortak şemaya dönüştürülmüş günlük recovery/sleep/strain verisi (004_wearables.sql).
+- **wellness_checkins** — Sporcunun günlük 5 maddelik özbildirim wellness anketi (McLean ve ark. 2010 ölçeği, 1=en kötü/5=en iyi, reverse-coding yok); readiness katmanının ham girdisi — üründe "Hooper Index" olarak ADLANDIRILMAZ (012_wellness.sql).
+- **whoop_cycles** — WHOOP'a özel, cycle bazlı ham strain/recovery verisi (004_wearables.sql).
+<!-- AUTO-GENERATED:SCHEMA:END -->
 
 ---
 
-## 4. ROW LEVEL SECURITY (TAM)
+## 4. ROW LEVEL SECURITY (ÇEKİRDEK TABLOLAR)
+
+> Aşağıdaki politikalar yalnızca `002_rls.sql`'i (ilk 8 çekirdek tablo) kapsar. `platform_exercises`, `org_exercise_categories`, `org_exercises`, `athlete_1rm_records` (005), `wellness_checkins` (012), `readiness_scores` (013), `exercise_sets` (014), `program_blocks` (017) ve `athlete_push_tokens` (004) için RLS politikaları kendi migration dosyalarında tanımlıdır, burada tekrar edilmez.
 
 ```sql
 -- =============================================
@@ -737,7 +576,7 @@ Aşağıdaki agent'ların her biri bir uzman gibi davranır. Görev başlamadan 
 [ ] apps/web/lib/supabase/client.ts → Client component client
 [ ] apps/web/lib/hooks/useUserContext.ts → Role + org + team bilgisi hook
 [ ] apps/web/app/(auth)/login/page.tsx → E-posta veya kullanıcı adı + şifre ile giriş (Magic Link Parti 4.D'de tamamen kaldırıldı)
-[ ] apps/web/app/(auth)/invite/[token]/page.tsx → Davet kabul sayfası
+[ ] apps/web/app/(auth)/invite/[token]/page.tsx → ARTIK KULLANILMIYOR (bağlantısız/ölü sayfa — bkz. aşağıdaki not) [Son doğrulama: Parti 4.E]
 [ ] supabase/functions/invite-member/ → Edge Function: davet emaili gönder
 [ ] packages/validators/auth.ts → Login, davet Zod şemaları
 ```
@@ -752,12 +591,25 @@ Aşağıdaki agent'ların her biri bir uzman gibi davranır. Görev başlamadan 
 // 5. /settings → sadece admin role
 ```
 
-**Davet akışı:**
+**Davet akışı (gerçek yol — [Son doğrulama: Parti 4.E]):**
 ```
-Admin email girer → Edge Function çağrılır →
-Supabase auth.admin.inviteUserByEmail() → metadata'ya org_id+role+team_id →
-Kullanıcı linke tıklar → invite/[token] sayfası → membership kaydı oluşur
+Admin Settings'te davet formunu gönderir
+→ apps/web/app/api/auth/invite/route.ts (session-doğrulamalı Next.js proxy)
+→ supabase/functions/invite-member/index.ts
+  → auth.admin.inviteUserByEmail(email, {
+      data: { pending_org_id, pending_role, pending_team_id },
+      redirectTo: `${SITE_URL}/auth/confirm`
+    })
+→ Kullanıcı e-postadaki linke tıklar (token_hash + type=invite ile /auth/confirm'e gider)
+→ apps/web/app/auth/confirm/route.ts: verifyOtp({ type, token_hash })
+  → pending_* metadata'dan memberships upsert (service-role client)
+  → pending_* metadata temizlenir
+  → redirect: /programs (athlete) veya /athletes (coach/admin)
 ```
+Not: `apps/web/app/(auth)/invite/[token]/page.tsx` bu akışın DIŞINDA — hiçbir yerden linklenmiyor,
+farklı bir mekanizma kullanıyor (`getSession()` + URL hash), bilinçli olarak dokunulmadı (Parti 4.D).
+`/auth/callback` de benzer şekilde zararsız ölü kod (yalnızca kaldırılmış Magic Link'in PKCE
+code-exchange'i içindi).
 
 **Test kriteri:** Coach A'nın cookie'si Coach B'nin takım verisini döndürmemeli
 
@@ -788,25 +640,17 @@ Kullanıcı linke tıklar → invite/[token] sayfası → membership kaydı olu�
 
 **UI kuralları:**
 - shadcn/ui komponentleri kullan, özel tasarım yapma
-- TanStack Query: server'da prefetch, client'da hydrate (Supajump pattern)
+- Server Components veri çeker, `*-client.tsx` client component'lerine prop olarak geçer; mutation/realtime sonrası `router.refresh()` ile yeniden doğrulanır (TanStack Query DEĞİL — bağımlılık var ama kullanılmıyor) [Son doğrulama: Parti 4.C]
 - Supabase Realtime: program publish edilince toast notification
 - Mobile-first responsive (koçlar tablet kullanabilir)
 - Loading state'ler: skeleton komponentleri (shadcn Skeleton)
 
-**Realtime aboneliği:**
-```typescript
-// Program publish edilince sporcular anlık görür
-supabase.channel('program-updates')
-  .on('postgres_changes', {
-    event: 'UPDATE',
-    schema: 'public',
-    table: 'training_programs',
-    filter: `is_published=eq.true`
-  }, (payload) => {
-    queryClient.invalidateQueries(['programs'])
-  })
-  .subscribe()
-```
+**Realtime aboneliği (gerçek pattern — [Son doğrulama: Parti 4.C]):**
+`training_programs` üzerinde `is_published=eq.true` filtreli bir `postgres_changes` UPDATE aboneliği,
+event geldiğinde `router.refresh()` çağırıp bir toast gösterir (`queryClient.invalidateQueries` DEĞİL —
+proje TanStack Query kullanmıyor). Gerçek uygulamalar:
+`apps/web/app/(dashboard)/programs/programs-client.tsx:62`,
+`apps/web/app/(dashboard)/athletes/athletes-client.tsx:50`.
 
 **Test kriteri:**
 - Coach yeni program oluşturur → publish → sporcu 2 saniye içinde görür
@@ -1027,6 +871,30 @@ Her agent görev başlamadan önce şunu yap:
 
 ---
 
+## 9.1 DOKÜMANTASYON BAKIM PROTOKOLÜ
+
+`[OTOMATİK ÜRETİLDİ]` — yani `<!-- AUTO-GENERATED:...:START/END -->` marker'ları arasındaki
+bloklar (§2 klasör ağacı, §3 tablo şeması, §11 migration listesi, dosya sonundaki senkron
+tarihi) **elle düzenlenmez** — `pnpm docs:sync` ile üretilir (`scripts/docs-sync.mjs`). Şema,
+klasör yapısı veya migration sayısını değiştiren HER Parti kapanışında bu komut çalıştırılır
+ve çıktısı commit'e dahil edilir.
+
+Not: senkron tarihi (dosya sonu) gün hassasiyetinde (`YYYY-MM-DD`) — aynı gün içinde art arda
+çalıştırılan iki `pnpm docs:sync` idempotent'tir (git diff boş çıkar); yalnızca gece yarısını
+aşan bir çift-çalıştırma tarih satırında fark gösterir, bu beklenen bir durumdur.
+
+Akış diyagramları ve mimari anlatı (davet akışı, RLS özeti, teknik pattern açıklamaları vb.)
+elle güncellenir. Her böyle bölümün yanında `[Son doğrulama: Parti X.Y]` etiketi bulunur.
+Yeni bir Parti kapanışında, mevcut Parti numarası bu etiketten 3+ ileriyse, o bölüm gözden
+geçirilmeden Parti kapatılamaz — ya güncellenir ya da hâlâ doğru olduğu teyit edilip etiket
+güncellenir.
+
+**Her Parti kapanış promptuna eklenecek standart adım:** "Bu Parti şema/route/klasör yapısı
+değiştirdiyse: `pnpm docs:sync` çalıştır. Akış/mimari anlatı değiştirdiyse: ilgili
+[Son doğrulama] etiketini güncelle."
+
+---
+
 ## 10. MVP TAMAMLANMA KRİTERLERİ
 
 Proje, aşağıdakiler çalışır durumda olunca MVP sayılır:
@@ -1053,6 +921,10 @@ Proje, aşağıdakiler çalışır durumda olunca MVP sayılır:
 *Son güncelleme: Haziran 2026 — Beyto Tosun / AthleteIQ*
 *Bu dosya CLAUDE.md'dir. Claude Code bu dosyayı okuyarak çalışır.*
 
+<!-- AUTO-GENERATED:SYNC_TIMESTAMP:START -->
+Son otomatik senkron: 2026-07-28
+<!-- AUTO-GENERATED:SYNC_TIMESTAMP:END -->
+
 ---
 
 ## 11. MEVCUT DURUM
@@ -1062,7 +934,31 @@ Proje, aşağıdakiler çalışır durumda olunca MVP sayılır:
 ### Supabase Cloud
 - **Proje URL:** `https://nlmwcygmbbxmfpsubvmh.supabase.co`
 - **Project ID:** `nlmwcygmbbxmfpsubvmh`
-- **Migration durumu (Supabase MCP `list_migrations` ile doğrulandı, 2026-07-29):** 001–006 ve 008–022 arası **21 migration** uygulandı, tüm tablolar aktif. **007 hiç var olmadı** — iki farklı migration aynı numara prefix'ini paylaşıyordu, biri silindi biri `010_trial.sql` olarak yeniden numaralandırıldı (bkz. BUGS.md "PARTİ 3"). En güncel: `022_add_athlete_username.sql`.
+- **Migration durumu:** `007` hiç var olmadı — iki farklı migration aynı numara prefix'ini paylaşıyordu, biri silindi biri `010_trial.sql` olarak yeniden numaralandırıldı (bkz. BUGS.md "PARTİ 3"). Güncel liste (otomatik senkron — bkz. dosya sonu "Son otomatik senkron"):
+
+<!-- AUTO-GENERATED:MIGRATIONS:START -->
+- 001_schema.sql
+- 002_rls.sql
+- 003_functions.sql
+- 004_wearables.sql
+- 005_exercises.sql
+- 006_exercise_seed.sql
+- 008_rls_signup.sql
+- 009_security_fixes.sql
+- 010_trial.sql
+- 011_realtime.sql
+- 012_wellness.sql
+- 013_readiness_scores.sql
+- 014_exercise_sets.sql
+- 015_exercise_sets_fixes.sql
+- 016_session_rpe.sql
+- 017_program_blocks.sql
+- 018_create_program_with_weeks.sql
+- 019_shared_session_tree_insert.sql
+- 020_update_program_week.sql
+- 021_propagate_week.sql
+- 022_add_athlete_username.sql
+<!-- AUTO-GENERATED:MIGRATIONS:END -->
 - **Edge Functions (Supabase MCP `list_edge_functions` ile doğrulandı, 2026-07-29):** dördü de cloud'a deploy edilmiş ve **ACTIVE**:
   - `invite-member` — v5, ACTIVE
   - `whoop-webhook` — v4, ACTIVE
