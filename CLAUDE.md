@@ -1062,15 +1062,20 @@ Proje, aşağıdakiler çalışır durumda olunca MVP sayılır:
 ### Supabase Cloud
 - **Proje URL:** `https://nlmwcygmbbxmfpsubvmh.supabase.co`
 - **Project ID:** `nlmwcygmbbxmfpsubvmh`
-- **Migration durumu:** 001–004 arası 4 migration uygulandı, tüm tablolar aktif
-- **Edge Functions:** Lokal var (`invite-member`, `whoop-webhook`, `polar-sync`), cloud'a **henüz deploy edilmedi**
+- **Migration durumu (Supabase MCP `list_migrations` ile doğrulandı, 2026-07-29):** 001–006 ve 008–022 arası **21 migration** uygulandı, tüm tablolar aktif. **007 hiç var olmadı** — iki farklı migration aynı numara prefix'ini paylaşıyordu, biri silindi biri `010_trial.sql` olarak yeniden numaralandırıldı (bkz. BUGS.md "PARTİ 3"). En güncel: `022_add_athlete_username.sql`.
+- **Edge Functions (Supabase MCP `list_edge_functions` ile doğrulandı, 2026-07-29):** dördü de cloud'a deploy edilmiş ve **ACTIVE**:
+  - `invite-member` — v5, ACTIVE
+  - `whoop-webhook` — v4, ACTIVE
+  - `polar-sync` — v4, ACTIVE
+  - `create-athlete-account` — v1, ACTIVE (Parti 4.B)
 
 ### Env Dosyaları
 - Web: `apps/web/.env.local` — `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `RESEND_API_KEY`, WHOOP/Polar placeholders
 - Mobile: `apps/mobile/.env` — `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`
 
-### Test Kullanıcısı
-- **Email:** tosunbeytullah9@gmail.com | **Şifre:** AthleteIQ2026
+### Test Hesapları
+- **Admin (super_admin):** tosunbeytullah9@gmail.com | Şifre: AthleteIQ2026
+- **Coach:** belgeli/kalıcı bir coach test hesabı **yok** (Parti 4.E'de doğrulandı — org'daki tek gerçek membership yukarıdaki admin). Gerekirse Parti 4.E'nin kullandığı yöntemle geçici bir hesap oluşturun (service-role ile `auth.admin.createUser` + `memberships` satırı, TGF org/ACE takım, `role: coach`) ve iş bitince silin — kalıcı bir coach hesabı bilerek burada tutulmuyor (gerçek şifre CLAUDE.md'ye yazılmaz).
 
 ### Çalışan Özellikler (2026-06-26 itibarıyla)
 - ✅ Auth: login (e-posta veya kullanıcı adı + şifre — Magic Link kaldırıldı, Parti 4.D), invite kabul, kullanıcı-adı tabanlı sporcu hesabı oluşturma (Parti 4.B/4.C), middleware (role-based routing)
@@ -1083,7 +1088,7 @@ Proje, aşağıdakiler çalışır durumda olunca MVP sayılır:
 - ✅ Mobile: login, program, recovery, competitions, profile, wearable connect ekranları
 
 ### Bekleyen Özellikler
-- ⏳ Edge Functions cloud deploy (davet e-postası çalışmıyor)
+- ⏳ Davet e-postası gerçek dış adreslere ulaşmıyor — Edge Functions'ın kendisi deploy edildi/ACTIVE (yukarıya bkz.), ama Supabase'in varsayılan SMTP'si yalnızca proje ekibi üyelerine gönderiyor ve saatte ~2 e-postayla sınırlı; gerçek sporcu/koç davetleri için custom SMTP (Dashboard → Auth → SMTP Settings) kurulmalı (bkz. BUGS.md)
 - ⏳ Realtime aboneliği (program publish → sporcu anlık görsün)
 - ⏳ Seed verisi genişletme (şu an minimal: 1 org, 2 takım, 1 sporcu)
 - ⏳ Egzersiz kütüphanesi (005_exercises.sql)
