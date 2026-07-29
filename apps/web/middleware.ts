@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import type { CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_ROUTES = ["/login", "/signup", "/demo", "/auth/callback", "/auth/confirm"];
+const PUBLIC_ROUTES = ["/login", "/signup", "/auth/callback", "/auth/confirm"];
 const AUTH_ROUTES = ["/login", "/signup"];
 
 export async function middleware(request: NextRequest) {
@@ -63,10 +63,11 @@ export async function middleware(request: NextRequest) {
     return supabaseResponse;
   }
 
-  // Giriş yapılmamışsa: "/" ise landing page, diğerleri login'e
+  // Giriş yapılmamışsa: "/" için page.tsx kendi redirect("/login")'ini
+  // yapar, diğer yollar burada doğrudan login'e yönlendirilir.
   if (!user) {
     if (pathname === "/") {
-      // Root page marketing layout'a geçiyor — geçir
+      // Root page kendi redirect'ini yapıyor — geçir
       return supabaseResponse;
     }
     const url = request.nextUrl.clone();

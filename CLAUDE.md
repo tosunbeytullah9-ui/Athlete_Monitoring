@@ -125,6 +125,7 @@ AthleteIQ/
 │   │   ├── app.json
 │   │   ├── babel.config.js
 │   │   ├── eslint.config.js
+│   │   ├── expo-env.d.ts
 │   │   ├── global.css
 │   │   ├── metro.config.js
 │   │   ├── nativewind-env.d.ts
@@ -213,7 +214,8 @@ AthleteIQ/
 │   │   ├── 019_shared_session_tree_insert.sql
 │   │   ├── 020_update_program_week.sql
 │   │   ├── 021_propagate_week.sql
-│   │   └── 022_add_athlete_username.sql
+│   │   ├── 022_add_athlete_username.sql
+│   │   └── 023_drop_trial_system.sql
 │   ├── snippets/
 │   ├── config.toml
 │   └── seed.sql
@@ -922,7 +924,7 @@ Proje, aşağıdakiler çalışır durumda olunca MVP sayılır:
 *Bu dosya CLAUDE.md'dir. Claude Code bu dosyayı okuyarak çalışır.*
 
 <!-- AUTO-GENERATED:SYNC_TIMESTAMP:START -->
-Son otomatik senkron: 2026-07-28
+Son otomatik senkron: 2026-07-29
 <!-- AUTO-GENERATED:SYNC_TIMESTAMP:END -->
 
 ---
@@ -958,6 +960,7 @@ Son otomatik senkron: 2026-07-28
 - 020_update_program_week.sql
 - 021_propagate_week.sql
 - 022_add_athlete_username.sql
+- 023_drop_trial_system.sql
 <!-- AUTO-GENERATED:MIGRATIONS:END -->
 - **Edge Functions (Supabase MCP `list_edge_functions` ile doğrulandı, 2026-07-29):** dördü de cloud'a deploy edilmiş ve **ACTIVE**:
   - `invite-member` — v5, ACTIVE

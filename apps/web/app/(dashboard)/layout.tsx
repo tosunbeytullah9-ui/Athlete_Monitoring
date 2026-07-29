@@ -3,7 +3,6 @@ import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/shared/sidebar";
 import { Header } from "@/components/shared/header";
 import { Toaster } from "@/components/ui/toaster";
-import { TrialBannerWrapper } from "@/components/shared/trial-banner-wrapper";
 import {
   UserContextProvider,
   type Role,
@@ -38,7 +37,6 @@ export default async function DashboardLayout({
   return (
     <UserContextProvider value={{ role, orgId, teamId }}>
       <div className="flex h-screen flex-col overflow-hidden">
-        <TrialBannerWrapper />
         <div className="flex flex-1 overflow-hidden">
           <Sidebar />
           <div className="flex flex-1 flex-col overflow-hidden">

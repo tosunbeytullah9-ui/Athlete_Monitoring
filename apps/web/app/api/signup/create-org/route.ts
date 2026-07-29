@@ -41,8 +41,6 @@ export async function POST(request: NextRequest) {
       name: orgName.trim(),
       slug: slug.trim(),
       plan: "free",
-      plan_status: "trial",
-      owner_id: user.id,
     })
     .select("id")
     .single();

@@ -1,7 +1,7 @@
 # AthleteIQ — Bug Envanteri
 
-> Oluşturulma: 2026-06-30 (salt-tespit) · Son güncelleme: 2026-07-27 (Parti 4.D — login formu tekilleştirme sırasında bulunan `loginSchema.password` minimum uzunluk tutarsızlığı ✅ FIXED)
-> **Durum:** 25 bulgunun 19'u ✅ FIXED. 1 madde (leaked-password) kod değil, kullanıcının elle yapacağı bir Supabase Dashboard ayarı (⏳). **Açık kod bug'ı: 3** — 1'i bilinçli olarak ertelendi (⚠️ WONTFIX, Parti 8'de çözülecek), 2'si Parti 2.2.C'de bulunan `week_number`/`duration_min` ("sessiz" kısmı Parti 2.2.D'de giderildi, kök nedeni hâlâ AÇIK). `start_date`/`end_date` bug'ı Parti 3.E'de her iki dosya için de tamamen kapandı. 1 madde (`@supabase/ssr` peer-dep uyuşmazlığı) ℹ️ izlemede — bug değil, dar bir assertion ile telafi edildi.
+> Oluşturulma: 2026-06-30 (salt-tespit) · Son güncelleme: 2026-07-29 (Parti 5.A — landing/trial/demo kaldırma sırasında bulunan middleware/signup guard çakışması, AÇIK, Parti 5.B'ye not düşüldü)
+> **Durum:** 26 bulgunun 19'u ✅ FIXED. 1 madde (leaked-password) kod değil, kullanıcının elle yapacağı bir Supabase Dashboard ayarı (⏳). **Açık kod bug'ı: 4** — 1'i bilinçli olarak ertelendi (⚠️ WONTFIX, Parti 8'de çözülecek), 2'si Parti 2.2.C'de bulunan `week_number`/`duration_min` ("sessiz" kısmı Parti 2.2.D'de giderildi, kök nedeni hâlâ AÇIK), 1'i Parti 5.A'da bulunan middleware/signup guard çakışması (AÇIK, Parti 5.B kapsamında). `start_date`/`end_date` bug'ı Parti 3.E'de her iki dosya için de tamamen kapandı. 1 madde (`@supabase/ssr` peer-dep uyuşmazlığı) ℹ️ izlemede — bug değil, dar bir assertion ile telafi edildi.
 > Düzeltmeler 4 partide (PARTİ 1–4), her biri kullanıcı onayıyla ve tsc/build/eslint doğrulamasıyla uygulandı.
 
 ## Tarama Yöntemi
@@ -18,6 +18,12 @@
 ---
 
 ## Kritik (sistem çalışmıyor)
+
+- **🔴 AÇIK — bulundu: 2026-07-29, Parti 5.A (landing/trial/demo kaldırma) doğrulaması sırasında** — **middleware'in membership-yok-guard'ı `/api/signup/create-org`'u da blokluyor olabilir** (`apps/web/middleware.ts`)
+  - **Sorun:** Middleware, `PUBLIC_ROUTES` dışındaki (ve `/auth/*`, `/invite` muafiyeti dışındaki) HER path için: kullanıcı authenticated ama `memberships` tablosunda satırı yoksa `/login?error=no_membership`'e redirect ediyor. `/api/signup/create-org` bu listede yok (`/signup` orada ama `/api/signup/create-org` `"/signup"` ile BAŞLAMIYOR, farklı bir path). Sonuç: taze signup olmuş (auth kullanıcısı var, ama `memberships` satırı henüz yok — çünkü bu endpoint'in kendisi o satırı oluşturacak) bir kullanıcının tarayıcısından bu endpoint'e giden gerçek istek, route handler'a hiç ulaşmadan middleware tarafından `/login`'e redirect edilebilir.
+  - **Nasıl bulundu:** Parti 5.A'nın create-org insert-payload düzeltmesini (trial kolonları kaldırma) doğrularken, taze bir test kullanıcısı + gerçek session cookie'siyle `/api/signup/create-org`'a curl isteği atıldı → `307 → /login?error=no_membership` döndü (route handler'a hiç ulaşmadı). Bu, Parti 5.A'nın dokunduğu hiçbir koddan kaynaklanmıyor — `PUBLIC_ROUTES`'un `/demo` dışındaki elemanları ve membership-check mantığı bu partide hiç değişmedi, önceden beri böyleydi.
+  - **Kapsam dışı bırakıldı (bilinçli):** Parti 5.A yalnızca landing/trial/demo kaldırmaya odaklıydı, signup'ın kendisine dokunmama talimatı vardı (Parti 5.B'nin işi). Bu yüzden düzeltilmedi, yalnızca kayda geçirildi. **Öneri (Parti 5.B için):** `/api/signup/create-org` (ve varsa `/api/signup/create-team`) middleware'in membership-guard'ından muaf tutulmalı (örn. `/auth/*`/`/invite` gibi ayrı bir `startsWith` istisnası ile), ya da bu guard yalnızca sayfa navigasyonlarına uygulanıp API route'ları hiç kapsamamalı.
+  - **Doğrulanmadı (net ayrım gerekiyor):** Gerçek bir tarayıcıda uçtan uca test edilmedi (yalnızca curl + elle inşa edilmiş session cookie ile) — bu yüzden `packages/validators`/client tarafında bu isteği bu guard'a hiç düşürmeyen bir sıralama/timing farkı (örn. `signUp()` sonrası cookie'nin fetch'ten önce tam olarak yazılmamış olması gibi farklı bir neden) olup olmadığı %100 dışlanmadı — ama mevcut middleware kodu okunduğunda mantıksal olarak bu guard'ın tetiklenmesi kaçınılmaz görünüyor.
 
 - **✅ FIXED (LOGOUT GUARD — 2026-07-01)** — **Athlete guard `/auth/logout`'u blokluyordu (Parti 1 yan etkisi)** (`apps/web/middleware.ts`)
   - **Sorun:** Parti 1 athlete rol guard'ı `role === 'athlete'` için `/programs` dışındaki her yolu `/programs`'a redirect ediyordu. Bu kural `/auth/logout` POST route'unu da yakaladı — athlete çıkış yapmak istediğinde middleware onu `/programs`'a geri atıyor, logout hiç çalışmıyordu (sonsuz döngü: athlete oturumdan çıkamıyordu).
@@ -133,11 +139,11 @@
 
 | Kategori | Sayı | Bug'lar |
 |----------|------|---------|
-| 🔴 **Kritik** | 3 | ✅ `/program` route uyumsuzluğu (PARTİ 1), ✅ rol cookie miras bug'ı (ROL CACHE), ✅ logout guard bloklama (LOGOUT GUARD) |
+| 🔴 **Kritik** | 4 | ✅ `/program` route uyumsuzluğu (PARTİ 1), ✅ rol cookie miras bug'ı (ROL CACHE), ✅ logout guard bloklama (LOGOUT GUARD), 🔴 middleware/signup guard çakışması (AÇIK, Parti 5.A'da bulundu, Parti 5.B kapsamı) |
 | 🟠 **Yüksek** | 3 | ✅ `/tests` stub (PARTİ 2), ✅ `/wearables` stub (PARTİ 2), ✅ `packages/ui` TS2322 (PARTİ 2) |
 | 🟡 **Orta** | 10 | ✅ `loginSchema.password` min-length tutarsızlığı (PARTİ 4.D), ✅ bayat types.ts (PARTİ 2), ✅ 007 migration çakışması (PARTİ 3), ✅ ESLint config yok (PARTİ 3), ✅ SECURITY DEFINER view (PARTİ 1), ✅ RLS policy'siz 2 tablo (PARTİ 1), 🟡 `week_number` submit reddi (AÇIK, "sessiz" kısmı Parti 2.2.D'de giderildi, kök neden değil), 🟡 `duration_min` submit reddi (AÇIK, aynı), ✅ `start_date`/`end_date` boşsa Postgres insert reddi (Parti 3.D + Parti 3.E'de her iki dosya için de kapandı), 🔴 mobil `ExerciseCard` deprecated kolon okuyor (AÇIK, Parti 2.2.D'de bulundu, Parti 7 kapsamı) |
 | ⚪ **Düşük** | 9 | ✅ landing layout import (PARTİ 4), ✅ search_path mutable (PARTİ 1), ⏳ leaked-password (kullanıcı aksiyonu), ✅ ölü kolonlar (PARTİ 4), ✅ migration isim sapması (PARTİ 3), ✅ PROGRESS.md drift (PARTİ 4), ✅ mobile realtime unpublish (PARTİ 4), ⚠️ 008/009 trial kolon sıralaması (WONTFIX, Parti 8'e ertelendi), ℹ️ `@supabase/ssr`/`@supabase/supabase-js` peer-dep generic uyuşmazlığı (izlemede, workaround uygulandı — Tip Güvenliği Temizliği v2) |
-| **TOPLAM** | **25** | **19 ✅ FIXED**, 3 açık kod bug'ı (1 ⚠️ WONTFIX Parti 8'e ertelendi, 2 kök nedeni AÇIK — `week_number`/`duration_min`, 1 mobil deprecated kolon okuma), 1 ⏳ kullanıcı aksiyonu (Supabase Dashboard ayarı), 1 ℹ️ izlemede (bug değil, dar assertion ile telafi edildi) |
+| **TOPLAM** | **26** | **19 ✅ FIXED**, 4 açık kod bug'ı (1 ⚠️ WONTFIX Parti 8'e ertelendi, 2 kök nedeni AÇIK — `week_number`/`duration_min`, 1 mobil deprecated kolon okuma, 1 middleware/signup guard çakışması — Parti 5.B kapsamı), 1 ⏳ kullanıcı aksiyonu (Supabase Dashboard ayarı), 1 ℹ️ izlemede (bug değil, dar assertion ile telafi edildi) |
 
 > **PARTİ 4.D (2026-07-27) — Login sayfası tekilleştirme sırasında bulunan bug:** `loginSchema.password`'ün `min(8)` şartı, `create-athlete-account`'ın kabul ettiği minimumla (`>= 6`) uyuşmuyordu; 6-7 karakterlik geçerli bir sporcu şifresi client-side'da reddedilip sunucuya hiç ulaşmazdı. `min(1)`'e (yalnızca boş-olmama) düşürüldü — login formu şifre oluşturmuyor, doğruluyor; karmaşıklık kontrolü sunucunun işi. Detay: PROGRESS.md § Parti 4.D.
 >

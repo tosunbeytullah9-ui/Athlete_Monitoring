@@ -225,13 +225,6 @@ export type Database = {
             foreignKeyName: "athletes_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "org_trial_status"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "athletes_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
@@ -321,13 +314,6 @@ export type Database = {
           team_id?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "competitions_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "org_trial_status"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "competitions_org_id_fkey"
             columns: ["org_id"]
@@ -504,13 +490,6 @@ export type Database = {
             foreignKeyName: "memberships_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "org_trial_status"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "memberships_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
@@ -561,13 +540,6 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "org_exercise_categories_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "org_trial_status"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "org_exercise_categories_org_id_fkey"
             columns: ["org_id"]
@@ -669,13 +641,6 @@ export type Database = {
             foreignKeyName: "org_exercises_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "org_trial_status"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "org_exercises_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
@@ -687,11 +652,8 @@ export type Database = {
           id: string
           logo_url: string | null
           name: string
-          owner_id: string | null
           plan: string | null
-          plan_status: string | null
           slug: string
-          trial_ends_at: string | null
           updated_at: string | null
         }
         Insert: {
@@ -699,11 +661,8 @@ export type Database = {
           id?: string
           logo_url?: string | null
           name: string
-          owner_id?: string | null
           plan?: string | null
-          plan_status?: string | null
           slug: string
-          trial_ends_at?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -711,11 +670,8 @@ export type Database = {
           id?: string
           logo_url?: string | null
           name?: string
-          owner_id?: string | null
           plan?: string | null
-          plan_status?: string | null
           slug?: string
-          trial_ends_at?: string | null
           updated_at?: string | null
         }
         Relationships: []
@@ -858,13 +814,6 @@ export type Database = {
             foreignKeyName: "program_blocks_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "org_trial_status"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "program_blocks_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
@@ -959,13 +908,6 @@ export type Database = {
           org_id?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "teams_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "org_trial_status"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "teams_org_id_fkey"
             columns: ["org_id"]
@@ -1084,13 +1026,6 @@ export type Database = {
             columns: ["block_id"]
             isOneToOne: false
             referencedRelation: "program_blocks"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "training_programs_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "org_trial_status"
             referencedColumns: ["id"]
           },
           {
@@ -1394,42 +1329,7 @@ export type Database = {
       }
     }
     Views: {
-      org_trial_status: {
-        Row: {
-          id: string | null
-          is_trial_expired: boolean | null
-          name: string | null
-          owner_id: string | null
-          plan: string | null
-          plan_status: string | null
-          slug: string | null
-          trial_days_remaining: number | null
-          trial_ends_at: string | null
-        }
-        Insert: {
-          id?: string | null
-          is_trial_expired?: never
-          name?: string | null
-          owner_id?: string | null
-          plan?: string | null
-          plan_status?: string | null
-          slug?: string | null
-          trial_days_remaining?: never
-          trial_ends_at?: string | null
-        }
-        Update: {
-          id?: string | null
-          is_trial_expired?: never
-          name?: string | null
-          owner_id?: string | null
-          plan?: string | null
-          plan_status?: string | null
-          slug?: string | null
-          trial_days_remaining?: never
-          trial_ends_at?: string | null
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Functions: {
       calculate_acwr: {

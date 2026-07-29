@@ -116,14 +116,6 @@ export function LoginForm() {
           {isSubmitting ? "Giriş yapılıyor…" : "Giriş Yap"}
         </button>
       </form>
-
-      {/* Hesap oluştur linki */}
-      <p className="text-center text-sm text-muted-foreground">
-        Hesabın yok mu?{" "}
-        <a href="/signup" className="text-primary underline-offset-4 hover:underline font-medium">
-          Ücretsiz başla
-        </a>
-      </p>
     </div>
   );
 }
