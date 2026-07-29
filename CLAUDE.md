@@ -169,6 +169,7 @@ AthleteIQ/
 │       ├── athlete.ts
 │       ├── auth.ts
 │       ├── index.ts
+│       ├── organization.ts
 │       ├── package.json
 │       ├── program.ts
 │       ├── team.ts
@@ -215,7 +216,8 @@ AthleteIQ/
 │   │   ├── 020_update_program_week.sql
 │   │   ├── 021_propagate_week.sql
 │   │   ├── 022_add_athlete_username.sql
-│   │   └── 023_drop_trial_system.sql
+│   │   ├── 023_drop_trial_system.sql
+│   │   └── 024_revert_signup_self_serve_rls.sql
 │   ├── snippets/
 │   ├── config.toml
 │   └── seed.sql
@@ -961,6 +963,7 @@ Son otomatik senkron: 2026-07-29
 - 021_propagate_week.sql
 - 022_add_athlete_username.sql
 - 023_drop_trial_system.sql
+- 024_revert_signup_self_serve_rls.sql
 <!-- AUTO-GENERATED:MIGRATIONS:END -->
 - **Edge Functions (Supabase MCP `list_edge_functions` ile doğrulandı, 2026-07-29):** dördü de cloud'a deploy edilmiş ve **ACTIVE**:
   - `invite-member` — v5, ACTIVE

@@ -8,7 +8,8 @@
     "./athlete": "./athlete.ts",
     "./program": "./program.ts",
     "./acwr": "./acwr.ts",
-    "./team": "./team.ts"
+    "./team": "./team.ts",
+    "./organization": "./organization.ts"
   },
   "scripts": {
     "type-check": "tsc --noEmit"

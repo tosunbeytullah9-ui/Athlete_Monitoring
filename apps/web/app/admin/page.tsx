@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@athleteiq/db/types";
 import {
@@ -9,6 +10,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 type OrgRow = Database["public"]["Tables"]["organizations"]["Row"];
 
@@ -28,13 +30,18 @@ export default async function SuperAdminPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">
-          Super Admin — Organizasyonlar
-        </h1>
-        <p className="text-muted-foreground mt-1">
-          Platformdaki tüm tenant&apos;lar
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">
+            Super Admin — Organizasyonlar
+          </h1>
+          <p className="text-muted-foreground mt-1">
+            Platformdaki tüm tenant&apos;lar
+          </p>
+        </div>
+        <Button asChild>
+          <Link href="/admin/organizations/new">Yeni Organizasyon</Link>
+        </Button>
       </div>
 
       <div className="rounded-md border">

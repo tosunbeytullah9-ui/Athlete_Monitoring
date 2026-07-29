@@ -14,7 +14,8 @@
     "./queries/wearables": "./queries/wearables.ts",
     "./queries/teams": "./queries/teams.ts",
     "./queries/memberships": "./queries/memberships.ts",
-    "./queries/exercises": "./queries/exercises.ts"
+    "./queries/exercises": "./queries/exercises.ts",
+    "./queries/organizations": "./queries/organizations.ts"
   },
   "scripts": {
     "type-check": "tsc --noEmit"

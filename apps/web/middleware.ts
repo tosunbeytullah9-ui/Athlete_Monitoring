@@ -2,8 +2,8 @@ import { createServerClient } from "@supabase/ssr";
 import type { CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_ROUTES = ["/login", "/signup", "/auth/callback", "/auth/confirm"];
-const AUTH_ROUTES = ["/login", "/signup"];
+const PUBLIC_ROUTES = ["/login", "/auth/callback", "/auth/confirm"];
+const AUTH_ROUTES = ["/login"];
 
 export async function middleware(request: NextRequest) {
   // Pathname'i downstream server component'lere ilet (layout guard kullanır)
