@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -9,16 +9,24 @@ import {
   Platform,
   ActivityIndicator,
 } from "react-native";
+import { useRouter } from "expo-router";
 import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/lib/auth";
 
 type Mode = "password" | "magic";
 
 export default function LoginScreen() {
+  const router = useRouter();
+  const { session } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [mode, setMode] = useState<Mode>("password");
   const [loading, setLoading] = useState(false);
   const [magicSent, setMagicSent] = useState(false);
+
+  useEffect(() => {
+    if (session) router.replace("/");
+  }, [session, router]);
 
   async function handlePasswordLogin() {
     if (!email || !password) {

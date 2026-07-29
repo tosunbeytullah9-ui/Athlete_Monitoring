@@ -38,11 +38,11 @@
 ```
 app/
 ├── _layout.tsx              → Root: AuthProvider + StatusBar + <Slot/>
-├── index.tsx                → Redirect: session varsa /(tabs)/program, yoksa /(auth)/login
+├── index.tsx                → Redirect: role-aware (Parti 8.B) — athlete/null → /(tabs)/program, coach/admin → /(tabs)/my-athletes, session yoksa /(auth)/login
 ├── (auth)/
-│   └── login.tsx            → Email/şifre + magic link
+│   └── login.tsx            → Email/şifre + magic link; başarılı girişte session→"/" redirect'i (Parti 8.B)
 └── (tabs)/
-    ├── _layout.tsx          → Bottom tab (4 sekme: Program, Recovery, Yarışmalar, Profil)
+    ├── _layout.tsx          → Bottom tab, role'e göre dallanıyor (Parti 8.B): athlete/null/yüklenirken 4 sekme (Program, Recovery, Yarışmalar, Profil); coach/admin 2 sekme (Sporcularım, Profil) — tüm 6 route her zaman render edilir, ilgisiz olanlar href:null ile gizlenir
     ├── program/
     │   ├── _layout.tsx      → Stack (index + [day])
     │   ├── index.tsx        → Haftalık program + realtime
@@ -53,11 +53,17 @@ app/
     ├── competitions/
     │   ├── _layout.tsx
     │   └── index.tsx        → Yaklaşan/geçmiş yarışmalar
-    └── profile/
-        ├── _layout.tsx      → Stack (index + connect-whoop + connect-polar)
-        ├── index.tsx        → Profil + wearable satırları + çıkış
-        ├── connect-whoop.tsx → STUB (sadece başlık)
-        └── connect-polar.tsx → STUB (sadece başlık)
+    ├── profile/
+    │   ├── _layout.tsx      → Stack (index + connect-whoop + connect-polar)
+    │   ├── index.tsx        → Profil + wearable satırları + çıkış (athlete)
+    │   ├── connect-whoop.tsx → STUB (sadece başlık)
+    │   └── connect-polar.tsx → STUB (sadece başlık)
+    ├── coach-profile/       → YENİ (Parti 8.B): e-posta/organizasyon adı/rol + çıkış (coach/admin)
+    │   ├── _layout.tsx
+    │   └── index.tsx
+    └── my-athletes/         → YENİ (Parti 8.B): placeholder, gerçek sorgu Parti 8.C'de
+        ├── _layout.tsx
+        └── index.tsx
 ```
 
 ### Çalışan (tam kodlanmış) ekranlar
@@ -127,9 +133,12 @@ app/
 - Mobil, Supabase JS SDK ile doğrudan konuşur; ortak backend **Supabase Auth (JWT)**. İki taraf aynı kullanıcı tablosunu paylaşır, çakışma yaratmaz.
 - Web'deki cookie/rol cache mantığındaki değişiklikler mobile'ı **etkilemez**.
 
-### Rol kontrolü — ⚠️ Yok (athlete varsayılıyor)
-- Mobilde rol kontrolü **yok**. `useAthleteProfile` doğrudan `athletes` tablosundan `user_id = auth.uid()` ile satır çeker.
-- Athlete satırı yoksa (koç/admin girişi) → `.single()` hata döner → ekranlar "Sporcu profili bulunamadı" gösterir. **Çökme değil, zarif düşüş.** Sporcu-yalnız uygulama için kabul edilebilir.
+### Rol kontrolü — ✅ Var (Parti 8.B, 2026-07-30)
+- `apps/mobile/lib/auth.tsx`'teki `AuthContext` artık `role`/`orgId`/`teamId`/`roleLoading` taşıyor — session çözüldükten sonra `memberships`'ten `.maybeSingle()` ile çekiliyor (membership yoksa hata yok, `role=null`).
+- `app/index.tsx` role-aware: `coach`/`admin` → `/(tabs)/my-athletes`, diğerleri (`athlete`/`null`) → `/(tabs)/program` (eski davranış korunuyor).
+- `(tabs)/_layout.tsx` role'e göre dallanıyor: athlete/null/yüklenirken eski 4 tab (Program/Recovery/Yarışmalar/Profil) birebir; coach/admin yalnızca 2 tab (Sporcularım — placeholder, Parti 8.C'de dolacak — ve Profil). Her iki dal da tüm 6 route'u render edip kendine ait olmayanları `href:null` ile gizliyor (expo-router'da bu zorunlu, `<Tabs.Screen>` filtrelemez).
+- `useAthleteProfile`/`athletes` tablosu sorgusu HÂLÂ eskisi gibi (dokunulmadı) — yalnızca athlete-only ekranlar (Program/Recovery/Yarışmalar/eski Profil) için geçerli, coach/admin artık bu ekranlara hiç girmiyor.
+- Cihazda doğrulandı (geçici coach test hesabı + mevcut İbrahim test hesabıyla). Detay: PROGRESS.md § Parti 8.B.
 
 ---
 
