@@ -1,5 +1,17 @@
 # MOBILE_STATUS.md — Sporcu Uygulaması Durum Tespiti
 
+> **GÜNCELLEME 2026-08-01 (Parti 8.D):** Hub'daki "Program" kartı artık gerçek içerik gösteriyor —
+> stub `my-athletes/[athleteId]/program.tsx` silindi, yerine atletin kendi `program/index.tsx` +
+> `[day].tsx` akışının salt-okunur bir klonu olan `my-athletes/[athleteId]/program/{_layout,index,
+> [day]}.tsx` geldi. Atlet ekranları (`(tabs)/program/*`) ve `ExerciseCard.tsx`'e hiç dokunulmadı —
+> koç görünümü sporcunun `useAthleteProfile()`'ı yerine yeni `lib/hooks/useCoachAthlete.ts`'i
+> (hub'ın `org_id`/`team_id` yetkilendirme kontrolünü paylaşan hook) kullanıyor. **Güvenlik notu:**
+> `training_programs`/`training_sessions`/`exercises` RLS'i coach için yalnızca org bazlı, takım
+> bazlı DEĞİL — `useCoachAthlete`'in client-side kontrolü bu veriler için tek takım-izolasyon
+> sınırı, canlıda doğrulandı. Backend/RLS doğrulandı (gerçek JWT'lerle athlete/coach parite testi
+> + boş durum + çapraz takım engelleme); **fiziksel cihaz testi henüz yapılmadı**. Detay:
+> PROGRESS.md § Parti 8.D.
+>
 > **GÜNCELLEME 2026-08-01 (Parti 8.C):** "Sporcularım" placeholder'ı gerçek sorguya bağlandı — `apps/mobile/app/(tabs)/my-athletes/index.tsx` artık `@athleteiq/db/queries/athletes`'teki `getAthletes`/`getAthleteById` ve `queries/teams`'teki `getTeams`'i (mevcut, yeni fonksiyon eklenmedi) doğrudan import ediyor — mobile'ın bu paketten **ilk runtime (tip-değil) importu**, `expo export` ile Metro'nun bunu sorunsuz bundle ettiği doğrulandı. Admin/coach ayrımı için hiçbir client-side kod YOK — `athletes_select` RLS politikası zaten bunu sağlıyor. Yeni `my-athletes/[athleteId]/` klasörü (hub ekranı + Program/Recovery/Yarışmalar placeholder'ları, gerçek içerik 8.D'de). Backend/RLS davranışı gerçek Supabase Cloud'a karşı curl ile doğrulandı; **fiziksel cihaz testi (dokunma/navigasyon/görsel kontrol) henüz yapılmadı** (kullanıcı tarafından ertelendi). Detay: PROGRESS.md § Parti 8.C.
 >
 > Oluşturulma: 2026-07-10 · AŞAMA 1 (salt-tespit)
@@ -69,8 +81,11 @@ app/
         └── [athleteId]/     → YENİ (Parti 8.C): hub ekranı + placeholder alt-route'lar
             ├── _layout.tsx  → Stack (index + program + recovery + competitions)
             ├── index.tsx    → Hub: sporcu adı + 3 kart (Program/Recovery/Yarışmalar), client-side savunma katmanı
-            ├── program.tsx       → STUB ("Yakında", gerçek içerik Parti 8.D'de)
-            ├── recovery.tsx      → STUB (aynı)
+            ├── program/          → YENİ (Parti 8.D): atletin haftalık/günlük program akışının salt-okunur klonu
+            │   ├── _layout.tsx   → Stack (index başlıksız, [day] native header "Günlük Program")
+            │   ├── index.tsx     → Haftalık görünüm (useCoachAthlete + aynı fetchPrograms/realtime deseni)
+            │   └── [day].tsx     → Günlük egzersiz detayı (ExerciseCard aynen yeniden kullanılıyor)
+            ├── recovery.tsx      → STUB ("Yakında", gerçek içerik sonraki bir Parti'de)
             └── competitions.tsx  → STUB (aynı)
 ```
 
