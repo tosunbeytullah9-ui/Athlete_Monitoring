@@ -113,7 +113,6 @@ Playwright (E2E testler)
 ```
 AthleteIQ/
 ├── .claude/
-│   ├── scheduled_tasks.lock
 │   └── settings.local.json
 ├── apps/
 │   ├── mobile/
@@ -217,7 +216,8 @@ AthleteIQ/
 │   │   ├── 021_propagate_week.sql
 │   │   ├── 022_add_athlete_username.sql
 │   │   ├── 023_drop_trial_system.sql
-│   │   └── 024_revert_signup_self_serve_rls.sql
+│   │   ├── 024_revert_signup_self_serve_rls.sql
+│   │   └── 025_team_scoped_training_rls.sql
 │   ├── snippets/
 │   ├── config.toml
 │   └── seed.sql
@@ -926,7 +926,7 @@ Proje, aşağıdakiler çalışır durumda olunca MVP sayılır:
 *Bu dosya CLAUDE.md'dir. Claude Code bu dosyayı okuyarak çalışır.*
 
 <!-- AUTO-GENERATED:SYNC_TIMESTAMP:START -->
-Son otomatik senkron: 2026-07-29
+Son otomatik senkron: 2026-08-01
 <!-- AUTO-GENERATED:SYNC_TIMESTAMP:END -->
 
 ---
@@ -964,6 +964,7 @@ Son otomatik senkron: 2026-07-29
 - 022_add_athlete_username.sql
 - 023_drop_trial_system.sql
 - 024_revert_signup_self_serve_rls.sql
+- 025_team_scoped_training_rls.sql
 <!-- AUTO-GENERATED:MIGRATIONS:END -->
 - **Edge Functions (Supabase MCP `list_edge_functions` ile doğrulandı, 2026-07-29):** dördü de cloud'a deploy edilmiş ve **ACTIVE**:
   - `invite-member` — v5, ACTIVE
