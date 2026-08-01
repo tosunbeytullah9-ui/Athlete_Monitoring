@@ -1,0 +1,119 @@
+import { useEffect, useState } from "react";
+import { View, Text, ActivityIndicator, TouchableOpacity } from "react-native";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { getAthleteById } from "@athleteiq/db/queries/athletes";
+import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/lib/auth";
+import type { Database } from "@athleteiq/db/types";
+
+type Athlete = Database["public"]["Tables"]["athletes"]["Row"];
+
+const CARDS = [
+  { key: "program", label: "Program", emoji: "📋" },
+  { key: "recovery", label: "Recovery", emoji: "💪" },
+  { key: "competitions", label: "Yarışmalar", emoji: "🏆" },
+] as const;
+
+export default function AthleteHubScreen() {
+  const { athleteId } = useLocalSearchParams<{ athleteId: string }>();
+  const router = useRouter();
+  const { role, orgId, teamId } = useAuth();
+  const [athlete, setAthlete] = useState<Athlete | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
+
+  useEffect(() => {
+    if (!athleteId || !orgId) return;
+    let mounted = true;
+
+    (getAthleteById(supabase, athleteId) as Promise<Athlete>)
+      .then((data) => {
+        if (!mounted) return;
+        const authorized =
+          data.org_id === orgId &&
+          (role === "admin" || (role === "coach" && data.team_id === teamId));
+        if (!authorized) {
+          setNotFound(true);
+        } else {
+          setAthlete(data);
+        }
+      })
+      .catch(() => {
+        if (mounted) setNotFound(true);
+      })
+      .finally(() => {
+        if (mounted) setLoading(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [athleteId, orgId, role, teamId]);
+
+  if (loading) {
+    return (
+      <View className="flex-1 items-center justify-center bg-gray-50">
+        <ActivityIndicator size="large" color="#1d4ed8" />
+      </View>
+    );
+  }
+
+  if (notFound || !athlete) {
+    return (
+      <View className="flex-1 bg-gray-50">
+        <View className="bg-blue-700 px-5 pt-14 pb-6">
+          <TouchableOpacity
+            className="flex-row items-center mb-3"
+            onPress={() => router.back()}
+          >
+            <Ionicons name="chevron-back" size={20} color="#93c5fd" />
+            <Text className="text-blue-300 ml-1 text-sm">Sporcularım</Text>
+          </TouchableOpacity>
+        </View>
+        <View className="flex-1 items-center justify-center p-8">
+          <Text className="text-4xl mb-3">🔍</Text>
+          <Text className="text-gray-900 font-semibold text-lg text-center">
+            Sporcu bulunamadı
+          </Text>
+          <Text className="text-gray-500 text-sm text-center mt-2">
+            Bu sporcuya erişim yetkiniz yok veya kayıt bulunamadı.
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View className="flex-1 bg-gray-50">
+      <View className="bg-blue-700 px-5 pt-14 pb-6">
+        <TouchableOpacity
+          className="flex-row items-center mb-3"
+          onPress={() => router.back()}
+        >
+          <Ionicons name="chevron-back" size={20} color="#93c5fd" />
+          <Text className="text-blue-300 ml-1 text-sm">Sporcularım</Text>
+        </TouchableOpacity>
+        <Text className="text-white text-2xl font-bold">{athlete.full_name}</Text>
+      </View>
+
+      <View className="p-4">
+        {CARDS.map((card) => (
+          <TouchableOpacity
+            key={card.key}
+            className="bg-white rounded-2xl p-4 mb-3 shadow-sm flex-row items-center"
+            onPress={() =>
+              router.push(`/(tabs)/my-athletes/${athleteId}/${card.key}` as never)
+            }
+          >
+            <Text className="text-2xl mr-3">{card.emoji}</Text>
+            <Text className="text-gray-900 font-semibold text-base flex-1">
+              {card.label}
+            </Text>
+            <Text className="text-gray-300 text-xl">›</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </View>
+  );
+}

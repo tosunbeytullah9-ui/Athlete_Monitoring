@@ -1,5 +1,7 @@
 # MOBILE_STATUS.md — Sporcu Uygulaması Durum Tespiti
 
+> **GÜNCELLEME 2026-08-01 (Parti 8.C):** "Sporcularım" placeholder'ı gerçek sorguya bağlandı — `apps/mobile/app/(tabs)/my-athletes/index.tsx` artık `@athleteiq/db/queries/athletes`'teki `getAthletes`/`getAthleteById` ve `queries/teams`'teki `getTeams`'i (mevcut, yeni fonksiyon eklenmedi) doğrudan import ediyor — mobile'ın bu paketten **ilk runtime (tip-değil) importu**, `expo export` ile Metro'nun bunu sorunsuz bundle ettiği doğrulandı. Admin/coach ayrımı için hiçbir client-side kod YOK — `athletes_select` RLS politikası zaten bunu sağlıyor. Yeni `my-athletes/[athleteId]/` klasörü (hub ekranı + Program/Recovery/Yarışmalar placeholder'ları, gerçek içerik 8.D'de). Backend/RLS davranışı gerçek Supabase Cloud'a karşı curl ile doğrulandı; **fiziksel cihaz testi (dokunma/navigasyon/görsel kontrol) henüz yapılmadı** (kullanıcı tarafından ertelendi). Detay: PROGRESS.md § Parti 8.C.
+>
 > Oluşturulma: 2026-07-10 · AŞAMA 1 (salt-tespit)
 > **GÜNCELLEME 2026-07-15:** Uygulama fiilen çalıştırıldı ve **cihazda doğrulandı**. Aşağıdaki iki iddia ARTIK GEÇERSİZ:
 > - ~~"20 TypeScript hatası"~~ → `@athleteiq/db` zaten bildirilmiş, `tsc --noEmit` **0 hata**.
@@ -61,9 +63,15 @@ app/
     ├── coach-profile/       → YENİ (Parti 8.B): e-posta/organizasyon adı/rol + çıkış (coach/admin)
     │   ├── _layout.tsx
     │   └── index.tsx
-    └── my-athletes/         → YENİ (Parti 8.B): placeholder, gerçek sorgu Parti 8.C'de
-        ├── _layout.tsx
-        └── index.tsx
+    └── my-athletes/         → Parti 8.B'de placeholder, Parti 8.C'de gerçek sorgu + hub navigasyonu
+        ├── _layout.tsx      → Stack (index + [athleteId])
+        ├── index.tsx        → Sporcu listesi (getAthletes+getTeams, org/team'e göre RLS filtreli)
+        └── [athleteId]/     → YENİ (Parti 8.C): hub ekranı + placeholder alt-route'lar
+            ├── _layout.tsx  → Stack (index + program + recovery + competitions)
+            ├── index.tsx    → Hub: sporcu adı + 3 kart (Program/Recovery/Yarışmalar), client-side savunma katmanı
+            ├── program.tsx       → STUB ("Yakında", gerçek içerik Parti 8.D'de)
+            ├── recovery.tsx      → STUB (aynı)
+            └── competitions.tsx  → STUB (aynı)
 ```
 
 ### Çalışan (tam kodlanmış) ekranlar
@@ -136,7 +144,7 @@ app/
 ### Rol kontrolü — ✅ Var (Parti 8.B, 2026-07-30)
 - `apps/mobile/lib/auth.tsx`'teki `AuthContext` artık `role`/`orgId`/`teamId`/`roleLoading` taşıyor — session çözüldükten sonra `memberships`'ten `.maybeSingle()` ile çekiliyor (membership yoksa hata yok, `role=null`).
 - `app/index.tsx` role-aware: `coach`/`admin` → `/(tabs)/my-athletes`, diğerleri (`athlete`/`null`) → `/(tabs)/program` (eski davranış korunuyor).
-- `(tabs)/_layout.tsx` role'e göre dallanıyor: athlete/null/yüklenirken eski 4 tab (Program/Recovery/Yarışmalar/Profil) birebir; coach/admin yalnızca 2 tab (Sporcularım — placeholder, Parti 8.C'de dolacak — ve Profil). Her iki dal da tüm 6 route'u render edip kendine ait olmayanları `href:null` ile gizliyor (expo-router'da bu zorunlu, `<Tabs.Screen>` filtrelemez).
+- `(tabs)/_layout.tsx` role'e göre dallanıyor: athlete/null/yüklenirken eski 4 tab (Program/Recovery/Yarışmalar/Profil) birebir; coach/admin yalnızca 2 tab (Sporcularım — Parti 8.C'de gerçek listeye bağlandı — ve Profil). Her iki dal da tüm 6 route'u render edip kendine ait olmayanları `href:null` ile gizliyor (expo-router'da bu zorunlu, `<Tabs.Screen>` filtrelemez).
 - `useAthleteProfile`/`athletes` tablosu sorgusu HÂLÂ eskisi gibi (dokunulmadı) — yalnızca athlete-only ekranlar (Program/Recovery/Yarışmalar/eski Profil) için geçerli, coach/admin artık bu ekranlara hiç girmiyor.
 - Cihazda doğrulandı (geçici coach test hesabı + mevcut İbrahim test hesabıyla). Detay: PROGRESS.md § Parti 8.B.
 
