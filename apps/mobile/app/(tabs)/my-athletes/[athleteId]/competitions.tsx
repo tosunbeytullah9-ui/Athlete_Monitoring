@@ -1,12 +1,179 @@
-import { View, Text, TouchableOpacity } from "react-native";
-import { useRouter } from "expo-router";
+import { useEffect, useState } from "react";
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  ActivityIndicator,
+  RefreshControl,
+} from "react-native";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { supabase } from "@/lib/supabase";
+import { useCoachAthlete } from "@/lib/hooks/useCoachAthlete";
+import type { Database } from "@athleteiq/db/types";
 
-export default function AthleteCompetitionsPlaceholder() {
+type Competition = Database["public"]["Tables"]["competitions"]["Row"];
+
+const LEVEL_LABELS: Record<string, string> = {
+  international: "Uluslararası",
+  national: "Ulusal",
+  regional: "Bölgesel",
+  local: "Yerel",
+};
+
+const LEVEL_COLORS: Record<string, string> = {
+  international: "bg-purple-100 text-purple-700",
+  national: "bg-red-100 text-red-700",
+  regional: "bg-orange-100 text-orange-700",
+  local: "bg-gray-100 text-gray-600",
+};
+
+function formatDate(dateStr: string | null): string {
+  if (!dateStr) return "";
+  const d = new Date(dateStr);
+  return d.toLocaleDateString("tr-TR", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}
+
+function daysUntil(dateStr: string | null): number | null {
+  if (!dateStr) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const comp = new Date(dateStr);
+  comp.setHours(0, 0, 0, 0);
+  return Math.ceil((comp.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+function CountdownBadge({ dateStr }: { dateStr: string | null }) {
+  const days = daysUntil(dateStr);
+  if (days === null) return null;
+
+  if (days < 0) {
+    return (
+      <View className="bg-gray-100 px-2 py-0.5 rounded-full">
+        <Text className="text-gray-500 text-xs">{Math.abs(days)} gün önce</Text>
+      </View>
+    );
+  }
+  if (days === 0) {
+    return (
+      <View className="bg-red-500 px-2 py-0.5 rounded-full">
+        <Text className="text-white text-xs font-bold">Bugün!</Text>
+      </View>
+    );
+  }
+  if (days <= 7) {
+    return (
+      <View className="bg-red-100 px-2 py-0.5 rounded-full">
+        <Text className="text-red-700 text-xs font-semibold">{days} gün kaldı</Text>
+      </View>
+    );
+  }
+  if (days <= 30) {
+    return (
+      <View className="bg-orange-100 px-2 py-0.5 rounded-full">
+        <Text className="text-orange-700 text-xs">{days} gün kaldı</Text>
+      </View>
+    );
+  }
+  return (
+    <View className="bg-gray-100 px-2 py-0.5 rounded-full">
+      <Text className="text-gray-500 text-xs">{days} gün kaldı</Text>
+    </View>
+  );
+}
+
+export default function CoachCompetitionsScreen() {
+  const { athleteId } = useLocalSearchParams<{ athleteId: string }>();
   const router = useRouter();
+  const { athlete, loading: athleteLoading, notFound } = useCoachAthlete(athleteId);
+  const [competitions, setCompetitions] = useState<Competition[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  async function fetchCompetitions(orgId: string) {
+    const { data } = await supabase
+      .from("competitions")
+      .select("*")
+      .eq("org_id", orgId)
+      .order("competition_date", { ascending: true });
+
+    if (data) setCompetitions(data);
+    setLoading(false);
+    setRefreshing(false);
+  }
+
+  useEffect(() => {
+    if (!athlete) {
+      setLoading(false);
+      return;
+    }
+    fetchCompetitions(athlete.org_id);
+  }, [athlete]);
+
+  const onRefresh = () => {
+    if (!athlete) return;
+    setRefreshing(true);
+    fetchCompetitions(athlete.org_id);
+  };
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const upcoming = competitions.filter((c) => {
+    if (!c.competition_date) return true;
+    return new Date(c.competition_date) >= today;
+  });
+  const past = competitions.filter((c) => {
+    if (!c.competition_date) return false;
+    return new Date(c.competition_date) < today;
+  });
+
+  if (athleteLoading || loading) {
+    return (
+      <View className="flex-1 items-center justify-center bg-gray-50">
+        <ActivityIndicator size="large" color="#1d4ed8" />
+      </View>
+    );
+  }
+
+  if (notFound || !athlete) {
+    return (
+      <View className="flex-1 bg-gray-50">
+        <View className="bg-blue-700 px-5 pt-14 pb-6">
+          <TouchableOpacity
+            className="flex-row items-center mb-3"
+            onPress={() => router.back()}
+          >
+            <Ionicons name="chevron-back" size={20} color="#93c5fd" />
+            <Text className="text-blue-300 ml-1 text-sm">Geri</Text>
+          </TouchableOpacity>
+        </View>
+        <View className="flex-1 items-center justify-center p-8">
+          <Text className="text-4xl mb-3">🔍</Text>
+          <Text className="text-gray-900 font-semibold text-lg text-center">
+            Sporcu bulunamadı
+          </Text>
+          <Text className="text-gray-500 text-sm text-center mt-2">
+            Bu sporcuya erişim yetkiniz yok veya kayıt bulunamadı.
+          </Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
-    <View className="flex-1 bg-gray-50">
+    <ScrollView
+      className="flex-1 bg-gray-50"
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#1d4ed8" />
+      }
+    >
+      {/* Header */}
       <View className="bg-blue-700 px-5 pt-14 pb-6">
         <TouchableOpacity
           className="flex-row items-center mb-3"
@@ -15,15 +182,102 @@ export default function AthleteCompetitionsPlaceholder() {
           <Ionicons name="chevron-back" size={20} color="#93c5fd" />
           <Text className="text-blue-300 ml-1 text-sm">Geri</Text>
         </TouchableOpacity>
-        <Text className="text-white text-2xl font-bold">Yarışmalar</Text>
-      </View>
-      <View className="flex-1 items-center justify-center p-8">
-        <Text className="text-4xl mb-3">🏆</Text>
-        <Text className="text-gray-900 font-semibold text-lg text-center">Yakında</Text>
-        <Text className="text-gray-500 text-sm text-center mt-2">
-          Sporcunun yarışmaları yakında burada görünecek.
+        <Text className="text-white text-2xl font-bold">{athlete.full_name}</Text>
+        <Text className="text-blue-200 text-sm mt-1">
+          Yarışmalar · {upcoming.length} yaklaşan etkinlik
         </Text>
       </View>
-    </View>
+
+      <View className="p-4">
+        {/* Yaklaşan */}
+        {upcoming.length > 0 && (
+          <>
+            <Text className="text-gray-900 font-semibold text-base mb-3">
+              Yaklaşan
+            </Text>
+            {upcoming.map((comp) => {
+              const levelStyle =
+                LEVEL_COLORS[comp.level ?? ""] ?? "bg-gray-100 text-gray-600";
+              return (
+                <View
+                  key={comp.id}
+                  className="bg-white rounded-2xl p-4 mb-3 shadow-sm"
+                >
+                  <View className="flex-row items-start justify-between">
+                    <View className="flex-1 mr-2">
+                      <Text className="text-gray-900 font-semibold text-base leading-tight">
+                        {comp.name}
+                      </Text>
+                      {comp.location && (
+                        <View className="flex-row items-center mt-1">
+                          <Text className="text-gray-400 text-sm">
+                            📍 {comp.location}
+                          </Text>
+                        </View>
+                      )}
+                      <Text className="text-gray-500 text-sm mt-0.5">
+                        {formatDate(comp.competition_date)}
+                      </Text>
+                    </View>
+                    <View className="items-end gap-1">
+                      {comp.level && (
+                        <View
+                          className={`px-2 py-0.5 rounded-full ${levelStyle.split(" ")[0]}`}
+                        >
+                          <Text
+                            className={`text-xs font-medium ${levelStyle.split(" ")[1]}`}
+                          >
+                            {LEVEL_LABELS[comp.level] ?? comp.level}
+                          </Text>
+                        </View>
+                      )}
+                      <CountdownBadge dateStr={comp.competition_date} />
+                    </View>
+                  </View>
+                  {comp.notes && (
+                    <Text className="text-gray-400 text-sm mt-2 italic">
+                      {comp.notes}
+                    </Text>
+                  )}
+                </View>
+              );
+            })}
+          </>
+        )}
+
+        {/* Geçmiş */}
+        {past.length > 0 && (
+          <>
+            <Text className="text-gray-500 font-semibold text-sm mb-3 mt-2">
+              GEÇMİŞ
+            </Text>
+            {past
+              .slice()
+              .reverse()
+              .map((comp) => (
+                <View
+                  key={comp.id}
+                  className="bg-white rounded-2xl p-4 mb-3 opacity-60"
+                >
+                  <Text className="text-gray-700 font-medium">{comp.name}</Text>
+                  <Text className="text-gray-400 text-sm">
+                    {formatDate(comp.competition_date)}
+                    {comp.location ? ` · ${comp.location}` : ""}
+                  </Text>
+                </View>
+              ))}
+          </>
+        )}
+
+        {competitions.length === 0 && (
+          <View className="items-center py-12">
+            <Text className="text-4xl mb-3">🏆</Text>
+            <Text className="text-gray-500 text-center">
+              Bu sporcu için henüz yarışma programlanmamış.
+            </Text>
+          </View>
+        )}
+      </View>
+    </ScrollView>
   );
 }

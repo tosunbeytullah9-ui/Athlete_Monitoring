@@ -1,5 +1,18 @@
 # MOBILE_STATUS.md — Sporcu Uygulaması Durum Tespiti
 
+> **GÜNCELLEME 2026-08-03 (Parti 8.H):** Hub'daki "Recovery" ve "Yarışmalar" kartları da artık gerçek
+> içerik gösteriyor — stub `my-athletes/[athleteId]/recovery.tsx`/`competitions.tsx` dosyalarının
+> üzerine, atlet akışının (`(tabs)/recovery/index.tsx`+`(tabs)/competitions/index.tsx`) salt-okunur
+> birebir klonu yazıldı (8.D'nin Program için kurduğu desenle aynı: `useCoachAthlete` + veri
+> parametresi `athlete.id`/`athlete.org_id`'ye çevrildi). **Keşif düzeltmesi:** bu iki ekran
+> `wellness_checkins`/`readiness_scores`'a hiç dokunmuyor (yalnızca `wearable_connections`/
+> `wearable_daily_metrics`/`competitions` kullanıyorlar) ve her ikisi de zaten form içermeyen
+> salt-okunur ekranlar. **Güvenlik notu:** bu Parti'nin dokunduğu tablolarda (wearable'lar) coach
+> RLS'i zaten baştan takım-bazlıydı (`training_programs` ailesinin aksine, 025'e ihtiyaç duymadı);
+> `competitions` org-geneli görünür kalıyor, bu bilinçli bir tasarım. Backend/RLS doğrulandı (gerçek
+> JWT'lerle aynı-takım/farklı-takım coach parite + engelleme testi); **fiziksel cihaz testi henüz
+> yapılmadı** (Parti 8.F'ye bırakıldı). Detay: PROGRESS.md § Parti 8.H.
+>
 > **GÜNCELLEME 2026-08-01 (Parti 8.D):** Hub'daki "Program" kartı artık gerçek içerik gösteriyor —
 > stub `my-athletes/[athleteId]/program.tsx` silindi, yerine atletin kendi `program/index.tsx` +
 > `[day].tsx` akışının salt-okunur bir klonu olan `my-athletes/[athleteId]/program/{_layout,index,
@@ -85,8 +98,8 @@ app/
             │   ├── _layout.tsx   → Stack (index başlıksız, [day] native header "Günlük Program")
             │   ├── index.tsx     → Haftalık görünüm (useCoachAthlete + aynı fetchPrograms/realtime deseni)
             │   └── [day].tsx     → Günlük egzersiz detayı (ExerciseCard aynen yeniden kullanılıyor)
-            ├── recovery.tsx      → STUB ("Yakında", gerçek içerik sonraki bir Parti'de)
-            └── competitions.tsx  → STUB (aynı)
+            ├── recovery.tsx      → YENİ (Parti 8.H): wearable recovery metrikleri, atlet ekranının klonu
+            └── competitions.tsx  → YENİ (Parti 8.H): yaklaşan/geçmiş yarışmalar, atlet ekranının klonu
 ```
 
 ### Çalışan (tam kodlanmış) ekranlar
