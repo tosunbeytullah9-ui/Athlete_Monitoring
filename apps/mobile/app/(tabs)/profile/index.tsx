@@ -132,7 +132,7 @@ export default function ProfileScreen() {
         onPress: async () => {
           setSigningOut(true);
           await supabase.auth.signOut();
-          // Root layout auth guard yönlendirecek
+          router.replace("/(auth)/login");
         },
       },
     ]);

@@ -1,4 +1,5 @@
 import { Tabs } from "expo-router";
+import { View, ActivityIndicator } from "react-native";
 import { Calendar, Activity, Trophy, User, Users } from "lucide-react-native";
 import { useAuth } from "@/lib/auth";
 
@@ -15,8 +16,23 @@ const screenOptions = {
 } as const;
 
 export default function TabsLayout() {
-  const { role, roleLoading } = useAuth();
-  const isCoachOrAdmin = !roleLoading && (role === "coach" || role === "admin");
+  const { session, loading, role, roleLoading } = useAuth();
+
+  // Oturum kapanınca root layout /(auth)/login'e yönlendirir; o gerçekleşene
+  // kadar burada eski rol verisiyle sekme render etmemek için boş dön.
+  if (loading || !session) {
+    return null;
+  }
+
+  if (roleLoading) {
+    return (
+      <View className="flex-1 items-center justify-center bg-gray-50">
+        <ActivityIndicator size="large" color="#1d4ed8" />
+      </View>
+    );
+  }
+
+  const isCoachOrAdmin = role === "coach" || role === "admin";
 
   if (isCoachOrAdmin) {
     return (

@@ -1,5 +1,15 @@
 # MOBILE_STATUS.md — Sporcu Uygulaması Durum Tespiti
 
+> **GÜNCELLEME 2026-08-04 (Parti 8.I):** Aşağıdaki "Açık buglar" madde 6'da flag edilip hiç
+> doğrulanmamış risk gerçekleşti — coach mobilde "Çıkış Yap" login ekranına dönmüyordu (ekranda
+> kalıp `"—"` alanlar + sonsuz spinner gösteriyordu). Kök neden: `lib/auth.tsx` session'ı doğru
+> temizliyordu ama hiçbir yerde geriye dönük (session→null) bir navigasyon guard'ı yoktu —
+> `signOut.ts`/`profile/index.tsx` yalnızca hayalî bir "root layout guard" yorumuna güveniyordu.
+> `app/_layout.tsx`'e gerçek bir global guard (`useSegments`+`router.replace`) eklendi, sign-out
+> handler'larına explicit navigasyon eklendi, `(tabs)/_layout.tsx` loading/no-session/role-loading
+> durumlarını net ayırdı. `tsc`/`expo lint` temiz; fiziksel cihazda kullanıcı tarafından doğrulandı
+> (coach + athlete, regresyon yok). Detay: PROGRESS.md § Parti 8.I, BUGS.md (Yüksek).
+>
 > **GÜNCELLEME 2026-08-03 (Parti 8.H):** Hub'daki "Recovery" ve "Yarışmalar" kartları da artık gerçek
 > içerik gösteriyor — stub `my-athletes/[athleteId]/recovery.tsx`/`competitions.tsx` dosyalarının
 > üzerine, atlet akışının (`(tabs)/recovery/index.tsx`+`(tabs)/competitions/index.tsx`) salt-okunur
@@ -195,7 +205,7 @@ app/
 
 ### ⚪ Düşük (kozmetik / iyileştirme)
 5. `router.push(... as never)` — typed routes (`app.json: typedRoutes:true`) bypass ediliyor. Çalışır ama tip güvenliği kaybı.
-6. Profil çıkış akışı `supabase.auth.signOut()` + "root layout yönlendirecek" yorumuna güveniyor — `onAuthStateChange` bunu tetikler, muhtemelen çalışır; doğrulanmalı.
+6. ~~Profil çıkış akışı `supabase.auth.signOut()` + "root layout yönlendirecek" yorumuna güveniyor — `onAuthStateChange` bunu tetikler, muhtemelen çalışır; doğrulanmalı.~~ — **ÇÖZÜLDÜ (Parti 8.I, 2026-08-04):** doğrulandığında GERÇEKTEN çalışmadığı ortaya çıktı (coach mobilde bildirildi) — hayalî "root layout guard" hiç yoktu. `app/_layout.tsx`'e gerçek bir global guard eklendi + `signOut.ts`/`profile/index.tsx`'e explicit `router.replace` çağrısı eklendi. Fiziksel cihazda kullanıcı tarafından doğrulandı. Detay: PROGRESS.md § Parti 8.I, BUGS.md (Yüksek).
 
 ---
 
