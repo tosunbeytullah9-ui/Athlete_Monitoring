@@ -1,5 +1,14 @@
-# MOBILE_STATUS.md — Sporcu Uygulaması Durum Tespiti
+# MOBILE_STATUS.md — Mobil Uygulama Durum Tespiti (Sporcu + Koç/Admin salt-okunur)
 
+> **GÜNCELLEME 2026-08-05 (Parti 8 Nihai Kapanış):** Parti 8 (8.B→8.I) fiziksel cihazda tam
+> olarak doğrulandı — 8.C/8.D/8.H'nin ertelediği dokunma/navigasyon testi (sporcu listesi,
+> program, recovery, yarışmalar ekranları; admin tüm org/coach yalnızca kendi takımı parite +
+> izolasyon kontrolleri) tamamlandı, regresyon yok. Mobil artık yalnızca bir "sporcu uygulaması"
+> değil — coach/admin için gerçek, salt-okunur bir görünüm içeriyor (bkz. § Rol kontrolü, §
+> Route yapısı). **Düzenleme/yönetim (program oluşturma, sporcu ekleme, publish etme vb.)
+> bilinçli olarak kapsam dışı bırakıldı** — mobilde YOK, ileride ayrı bir iş olarak ele alınacak
+> ("Seçenek C": mobilde tam coach yazma paritesi). Detay: PROGRESS.md § Parti 8 Kapanış Özeti.
+>
 > **GÜNCELLEME 2026-08-04 (Parti 8.I):** Aşağıdaki "Açık buglar" madde 6'da flag edilip hiç
 > doğrulanmamış risk gerçekleşti — coach mobilde "Çıkış Yap" login ekranına dönmüyordu (ekranda
 > kalıp `"—"` alanlar + sonsuz spinner gösteriyordu). Kök neden: `lib/auth.tsx` session'ı doğru
@@ -42,7 +51,7 @@
 > - ~~"20 TypeScript hatası"~~ → `@athleteiq/db` zaten bildirilmiş, `tsc --noEmit` **0 hata**.
 > - ~~"Boot / kritik bug: statikte temiz"~~ → Gerçekte **donmuş yüzey** bug'ı vardı (css-interop `printUpgradeWarning` hang) — çözüldü, § "Donma bug'ı" bölümüne bak.
 >
-> Kapsam: `apps/mobile/` (Expo — Sporcu uygulaması)
+> Kapsam: `apps/mobile/` (Expo — Sporcu uygulaması + Koç/Admin salt-okunur görünümü, Parti 8)
 
 ---
 
@@ -230,5 +239,6 @@ app/
 | TypeScript | ✅ 0 hata (2026-07-15 doğrulandı) |
 | Boot / kritik bug | ✅ Cihazda doğrulandı — donma bug'ı çözüldü (css-interop patch), 4 tab + Program çalışıyor |
 | Wearable connect ekranları | 🟠 Stub (MVP dışı) |
+| Koç/Admin mobil erişimi | ✅ Salt-okunur, cihazda doğrulandı (Parti 8.B–8.I) — düzenleme/yönetim ayrı bir iş (Seçenek C) |
 
 **Sonraki adım:** AŞAMA 2 — önce `expo start` ile gerçek durumu gör, sonra parti parti düzelt (ilk parti: 20 TS hatası tek satırla).
