@@ -218,7 +218,8 @@ AthleteIQ/
 │   │   ├── 023_drop_trial_system.sql
 │   │   ├── 024_revert_signup_self_serve_rls.sql
 │   │   ├── 025_team_scoped_training_rls.sql
-│   │   └── 026_team_scoped_program_rpc.sql
+│   │   ├── 026_team_scoped_program_rpc.sql
+│   │   └── 027_drop_calculate_acwr.sql
 │   ├── snippets/
 │   ├── config.toml
 │   └── seed.sql
@@ -967,6 +968,7 @@ Son otomatik senkron: 2026-08-05
 - 024_revert_signup_self_serve_rls.sql
 - 025_team_scoped_training_rls.sql
 - 026_team_scoped_program_rpc.sql
+- 027_drop_calculate_acwr.sql
 <!-- AUTO-GENERATED:MIGRATIONS:END -->
 - **Edge Functions (Supabase MCP `list_edge_functions` ile doğrulandı, 2026-07-29):** dördü de cloud'a deploy edilmiş ve **ACTIVE**:
   - `invite-member` — v5, ACTIVE

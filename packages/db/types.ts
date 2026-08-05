@@ -1332,14 +1332,6 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      calculate_acwr: {
-        Args: { p_athlete_id: string; p_date: string }
-        Returns: {
-          acute_load: number
-          acwr_ratio: number
-          chronic_load: number
-        }[]
-      }
       copy_program_tree: {
         Args: { p_source_program_id: string; p_target_program_id: string }
         Returns: undefined

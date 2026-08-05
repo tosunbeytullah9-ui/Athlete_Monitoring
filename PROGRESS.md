@@ -1,6 +1,21 @@
 # AthleteIQ — Proje Durumu
 
-> Son güncelleme: 2026-08-05 (**Parti 8 Nihai Kapanış — 8.B'den 8.I'ye** — Parti 8'in yedi
+> Son güncelleme: 2026-08-05 (**Parti 6 — ACWR Konsolidasyonu** — DB'de duran, hiçbir yerden
+> çağrılmayan `calculate_acwr()` SQL fonksiyonu (`003_functions.sql`/`009_security_fixes.sql`)
+> canlı ACWR hesaplamasından (`acwr-client.tsx`) metodolojik olarak farklıydı — fonksiyon
+> DEĞİŞKEN bölen (yalnızca loglanan günlerin `avg()`'i), canlı formül SABİT bölen (7/28 takvim
+> günü) kullanıyordu; somut örnekte (3 kayıtlı, 1080 yük, 28 günlük pencere) bu fark
+> `acwr_ratio ≈ 1.0` ile `≈ 4.0` arasında 4 kat sapmaya yol açıyordu. Kullanıcı kararıyla
+> client-side sabit-bölen formül kalıcı standart ilan edildi, ölü fonksiyon migration
+> `027_drop_calculate_acwr.sql` ile (Supabase MCP `apply_migration`, `nlmwcygmbbxmfpsubvmh`)
+> drop edildi, `packages/db/types.ts` `--linked` ile regenerate edildi. `acwr-client.tsx`'e
+> DOKUNULMADI — hiçbir hesaplama mantığı değişmedi, saf ölü-kod temizliği + dokümantasyon
+> konsolidasyonu (READINESS_PLAN.md §1.2/§8.1, BUGS.md yeni kapalı madde). Doğrulama:
+> `pnpm --filter web build` (23 sayfa) + `pnpm turbo run type-check` (5/5 paket) temiz,
+> `get_advisors` yeni ERROR/WARN üretmedi, canlı `/acwr` sayfası admin JWT'siyle (Auth REST +
+> elle inşa edilmiş `sb-*-auth-token` cookie'si) regresyonsuz render edildi, `pnpm docs:sync`
+> çalıştırıldı (26 migration). Detay: § Parti 6 — ACWR Konsolidasyonu)
+> Önceki: 2026-08-05 (**Parti 8 Nihai Kapanış — 8.B'den 8.I'ye** — Parti 8'in yedi
 > alt-adımı (8.B rol tespiti, 8.C sporcu listesi, 8.D program görünümü, 8.E/8.G güvenlik
 > düzeltmeleri, 8.H recovery/yarışmalar, 8.I çıkış-yap düzeltmesi) tek bir kapanış özetinde
 > toplandı — 5. tab yerine ayrı ekran ağacı, paylaşılan `useCoachAthlete` yetkilendirme guard'ı
@@ -45,6 +60,20 @@
 ---
 
 ## Tamamlanan Özellikler
+
+### Parti 6 — ACWR Konsolidasyonu ✅ (2026-08-05)
+
+**Kapsam:** Yalnızca DB + dokümantasyon — yeni migration `027_drop_calculate_acwr.sql`, `packages/db/types.ts` regen, `READINESS_PLAN.md` §1.2/§8.1 düzeltmesi, `BUGS.md`'de yeni kapalı madde. `apps/web/app/(dashboard)/acwr/acwr-client.tsx`'e DOKUNULMADI — hesaplama mantığı değişmedi (kullanıcı kararı: sabit-bölen formül kalıcı standart).
+
+**0. Keşif:** Bir önceki (kod değişikliği yapmayan) keşif oturumu `calculate_acwr(p_athlete_id uuid, p_date date)` SQL fonksiyonunun (`003_functions.sql`'de tanımlı, `009_security_fixes.sql:126-153`'te search_path sertleştirmesiyle aynı mantıkla yeniden tanımlanmış) %100 ölü kod olduğunu kesin doğrulamıştı — repo genelinde onu çağıran hiçbir `.rpc("calculate_acwr", ...)` call site yok. Bu partide bu bulgu tekrar grep ile doğrulandı: repo genelinde toplam 3 `.rpc(` çağrısı var (`create_program_with_weeks`, `update_program_week`, `propagate_week_to_future`), hiçbiri ACWR değil. Kritik olan yalnızca "kullanılmıyor" değil — fonksiyon canlı client-side hesaplamadan (`acwr-client.tsx`'teki `avgLoad()`) **metodolojik olarak farklı**: SQL fonksiyonu DEĞİŞKEN bölen (`avg()` — yalnızca loglanan günler) kullanırken, canlı formül SABİT bölen (7/28 takvim günü, dinlenme günleri sıfır yük) kullanıyor. Somut örnek: 28 günlük pencerede yalnızca 3 kayıtlı seansı (420+300+360=1080 yük) olan yeni bir sporcu için ölü fonksiyon `acwr_ratio ≈ 1.0` ("dengeli") üretirdi, canlı formül `≈ 4.0` ("aşırı yüklenme alarmı") üretiyor — az-veri/yeni-sporcu senaryosunda 4 kat fark. `acwr_logs.acwr_ratio` (`001_schema.sql`) generated column'ının yalnızca `acute_load`/`chronic_load`'a bağlı olduğu, bu fonksiyona bağımlı olmadığı doğrulandı — drop şemayı etkilemiyor. Başka hiçbir view/trigger'ın fonksiyona bağımlı olmadığı da doğrulandı.
+
+**Düzeltme:** Yeni migration `supabase/migrations/027_drop_calculate_acwr.sql` (`drop function if exists calculate_acwr(uuid, date)` — `CASCADE` kullanılmadı, bilinmeyen bir bağımlılık olsaydı ifade hata verip duracaktı), Supabase MCP `apply_migration` ile `nlmwcygmbbxmfpsubvmh`'a uygulandı (`success:true`). `list_migrations` ile `20260805195742`/`drop_calculate_acwr` kaydı doğrulandı. `packages/db/types.ts` `supabase gen types typescript --linked` ile regenerate edildi (MCP `generate_typescript_types` DEĞİL — Parti 5.A'nın kendi dokümante ettiği bulgu gereği, MCP çıktısında `graphql_public` şema bloğu eksik çıkıyor, CLI `--linked` bu bloğu koruyor); diff yalnızca `Functions.calculate_acwr` bloğunun (8 satır) kalkması, başka hiçbir şey değişmedi.
+
+**DOĞRULAMA:** `pnpm --filter web build` → 23 sayfa, 0 hata (yalnızca önceden var olan ESLint uyarıları — `/acwr` dahil tüm route'lar derlendi). `pnpm turbo run type-check` → 5/5 paket temiz (mobile'da ayrı script yok, önceki partilerin de gördüğü durum) — silinen RPC tipinin hiçbir yerde referanslanmadığının asıl kanıtı. `mcp__Supabase__get_advisors` (security) → `calculate_acwr` ile ilgili hiçbir bulgu yok, migration öncesine göre yeni ERROR/WARN yok (mevcut EXECUTE-grant/leaked-password WARN'ları ilgisiz/beklenen, değişmedi). **Canlı `/acwr` kontrolü** (gerçek admin Auth REST login + elle inşa edilmiş `sb-nlmwcygmbbxmfpsubvmh-auth-token` cookie'si — önceki partilerin yöntemiyle aynı, Playwright bu ortamda yok): `pnpm --filter web dev` ile `localhost:3000`'de başlatılan dev server'a admin JWT'siyle `GET /acwr` → `200`, SSR HTML'de "ACWR Dashboard" başlığı, sporcu seçici (İbrahim Çolak), 4 istatistik kartı (Mevcut ACWR / Akut Yük / Kronik Yük / Toplam Log) ve beklenen boş-durum mesajı ("Bu sporcu için henüz yük logu yok" — veri yok, hata değil) doğru render edildi; hiçbir exception/error boundary tetiklenmedi, `role:"admin"` doğru çözüldü. Hesaplama mantığı değişmediği için regresyon beklenmiyordu, doğrulandı. `pnpm docs:sync` çalıştırıldı — CLAUDE.md'nin migration listesine `027_drop_calculate_acwr.sql` eklendi (26 migration), senkron tarihi güncellendi.
+
+**BUGS.md:** Yeni bir Orta-kategori madde zaten kapalı (`✅ FIXED`) olarak eklendi — bulgu, karar, düzeltme ve doğrulama tek maddede birleştirildi (4x örnek dahil). Özet tablosu güncellendi: 🟡 Orta `11 → 12`, TOPLAM `29 → 30` / `23 → 24 ✅ FIXED`. Açık kod bug'ı sayısı (**4**) DEĞİŞMEDİ — yeni madde zaten kapalı eklendi. Header'daki "Son güncelleme" parantezi bir katman içeri alınıp "Önceki güncelleme" yapıldı, yeni dış parantez bu Parti'nin özetini taşıyor.
+
+**READINESS_PLAN.md:** §1.2'deki "Readiness motoru `calculate_acwr()`'ı canlı çağırmalı" önerisi kaldırıldı — artık var olmayan bir fonksiyona işaret ediyordu. Yerine: ACWR bileşeni için standart formülün `acwr-client.tsx`'teki sabit-bölen (7/28 takvim günü) yaklaşım olduğu, bunun Gabbett/Hulin rolling-average ACWR metodolojisiyle örtüştüğü ve az-veri/yeni-sporcu senaryosunda akut yüklenme sıçramasını doğru yakaladığı belirtildi; Readiness motoru yazıldığında bu formülü yeniden implement ederek ya da `acwr-client.tsx`'in mantığını `packages/`'e çıkarıp paylaşarak kullanmalı, ayrı bir SQL fonksiyonu YENİDEN YAZILMAMALI. §8.1'deki bulgu #2 (`calculate_acwr() ölü kod`) 🟡 → ✅ olarak işaretlenip Parti 6'da migration 027 ile kapandığı belirtildi. Bulgu #1 (`acwr_logs` UPDATE politikası eksik) ve #3 (`acwr_ratio` snapshot bayatlığı) bu partinin kapsamı DIŞINDA bırakıldı, dokunulmadı.
 
 ### Parti 8 Kapanış Özeti — 8.B'den 8.I'ye ✅ (2026-08-05)
 

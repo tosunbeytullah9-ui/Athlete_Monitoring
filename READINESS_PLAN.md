@@ -64,9 +64,9 @@ Readiness katmanı, **daveti çalışan bir sisteme** ihtiyaç duyar. Bu yüzden
 - `session_load` ve `acwr_ratio` **gerçekten generated** (canlı `information_schema` ile doğrulandı — ilk bakışta `column_default: null` görünür, bu generated kolonlarda normaldir, yanlış alarm değil).
 - Ama `acute_load` / `chronic_load` **düz kolon** — bunları uygulama yazar.
 - [acwr-client.tsx:117-151](apps/web/app/(dashboard)/acwr/acwr-client.tsx#L117-L151) bunları **client-side, JS'te, yalnızca kayıt anında** hesaplar.
-- DB'deki `calculate_acwr()` fonksiyonu ([003_functions.sql](supabase/migrations/003_functions.sql)) **hiç kullanılmıyor** — ölü kod.
+- DB'deki `calculate_acwr()` fonksiyonu ([003_functions.sql](supabase/migrations/003_functions.sql)) hiç kullanılmıyordu — Parti 6'da `027_drop_calculate_acwr.sql` ile drop edildi (bkz. BUGS.md, PROGRESS.md § Parti 6).
 
-**Sonuç:** `acwr_ratio`, yazıldığı andaki bir **snapshot**'tır; sonraki günlerde yeniden hesaplanmaz. Readiness motoru (iterasyon 3) `acwr_logs.acwr_ratio`'yu okumamalı; skor anında `calculate_acwr(athlete_id, date)` çağırmalı. Aksi halde readiness skoru bayat bir orana dayanır. (§6.3)
+**Sonuç:** `acwr_ratio`, yazıldığı andaki bir **snapshot**'tır; sonraki günlerde yeniden hesaplanmaz. ACWR bileşeni için standart formül acwr-client.tsx'teki sabit-bölen (7/28 takvim günü, dinlenme günleri sıfır kabul edilir) yaklaşımdır — bu, Gabbett/Hulin rolling-average ACWR metodolojisiyle örtüşür ve az-veri/yeni-sporcu senaryosunda akut yüklenme sıçramasını doğru yakalar (bkz. BUGS.md/PROGRESS.md Parti 6 için somut örnek). Readiness motoru yazıldığında bu formülü (yeniden implement ederek ya da acwr-client.tsx'in hesaplama mantığını packages/'e çıkarıp paylaşarak) kullanmalı, ayrı bir SQL fonksiyonu YENİDEN YAZILMAMALI.
 
 ### 1.3 Mevcut RLS kalıbı — sağlam ve tekrar kullanılabilir
 
@@ -623,7 +623,7 @@ Her adım tek başına sevk edilebilir ve doğrulanabilir. **Ölçüt: her adım
 Readiness çalışmasında bulundu, ayrı ele alınmalı:
 
 1. 🔴 **`acwr_logs` UPDATE politikası eksik** ama `upsertAcwrLog` upsert yapıyor → aynı güne ikinci ACWR logu **sessizce RLS'e takılıyor**. (§2.4) — *Muhtemelen bugün canlıda kırık, kimse fark etmemiş çünkü `acwr_logs`'ta 1 satır var.*
-2. 🟡 **`calculate_acwr()` ölü kod** — DB'de duruyor, uygulama ACWR'yi client-side JS'te hesaplıyor. İki farklı doğruluk kaynağı, biri kullanılmıyor. Readiness motoru bunu netleştirmek zorunda kalacak. (§1.2)
+2. ✅ **`calculate_acwr()` ölü kod — ÇÖZÜLDÜ (Parti 6)** — DB'de duran, uygulamanın client-side JS hesaplamasından metodolojik olarak farklı sonuç üreten (bkz. BUGS.md'deki 4x örneği) ölü fonksiyon `027_drop_calculate_acwr.sql` ile drop edildi. Artık tek doğruluk kaynağı var: `acwr-client.tsx`'teki sabit-bölen (7/28 takvim günü) formül. Readiness motoru için "hangi kaynağı netleştirmeli" sorusu ortadan kalktı. (§1.2)
 3. 🟡 **`acwr_ratio` snapshot** — yazıldığı anda donuyor, sonraki günlerde yeniden hesaplanmıyor. Readiness'in yük bileşeni buna güvenmemeli. (§1.2)
 
 ---
